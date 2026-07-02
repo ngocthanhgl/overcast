@@ -76,8 +76,9 @@ const CityListItem = React.memo(({
       }}
       transition={{ 
         type: "spring", 
-        stiffness: 420, 
-        damping: 32 
+        stiffness: 350, 
+        damping: 35,
+        mass: 0.8
       }}
     >
       <motion.div
@@ -86,7 +87,7 @@ const CityListItem = React.memo(({
           onSelect(index);
         }}
         className={cn(
-          "p-5 flex items-center justify-between rounded-[28px] border transition-all duration-300 cursor-pointer outline-none focus:outline-none [-webkit-tap-highlight-color:transparent] select-none",
+          "p-5 flex items-center justify-between rounded-[28px] border transition-colors duration-200 cursor-pointer outline-none focus:outline-none [-webkit-tap-highlight-color:transparent] select-none",
           isSelected 
             ? "bg-white/[0.08] border-white/[0.12] shadow-[0_0_25px_rgba(255,255,255,0.02)]" 
             : "bg-app-surface/60 border-app-border hover:bg-app-surface/80"
@@ -177,11 +178,11 @@ const CityManager = ({
     setLocalLocations(locations);
   }, [locations]);
 
-  const handleRemove = (e: React.MouseEvent, index: number) => {
+  const handleRemove = React.useCallback((e: React.MouseEvent, index: number) => {
     e.stopPropagation();
     Haptic.warning(hapticEnabled);
     onRemove(index);
-  };
+  }, [onRemove, hapticEnabled]);
 
   return (
     <>
