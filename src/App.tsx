@@ -316,20 +316,23 @@ const AnimatedWeatherLoader = () => {
 
 const slideHorizontalVariants = {
   initial: { 
-    x: "40%"
+    x: "100%",
+    opacity: 0
   },
   animate: { 
     x: 0,
+    opacity: 1,
     transition: {
-      duration: 0.28,
-      ease: [0.32, 0.72, 0, 1]
+      duration: 0.35,
+      ease: [0.25, 0.46, 0.45, 0.94]
     }
   },
   exit: { 
-    x: "40%",
+    x: "100%",
+    opacity: 0,
     transition: {
-      duration: 0.24,
-      ease: [0.32, 0.72, 0, 1]
+      duration: 0.35,
+      ease: [0.25, 0.46, 0.45, 0.94]
     }
   }
 };
@@ -3334,12 +3337,12 @@ export default function App() {
         {showCityManager && (
           <motion.div 
             key="city-manager-root"
-            initial={{ y: "100%", opacity: 1 }}
+            initial={{ y: "100%", opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ y: "100%", opacity: 0 }}
             transition={{
-              y: { duration: 0.28, ease: [0.32, 0.72, 0, 1] },
-              opacity: { duration: 0 }
+              duration: 0.35,
+              ease: [0.25, 0.46, 0.45, 0.94]
             }}
             style={{ willChange: "transform" }}
             className="fixed inset-0 z-[99990] bg-app-bg overflow-y-auto transform-gpu"
@@ -3381,12 +3384,12 @@ export default function App() {
         {showSearch && (
           <motion.div 
             key="search-bar-root"
-            initial={{ y: "100%", opacity: 1 }}
+            initial={{ y: "100%", opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ y: "100%", opacity: 0 }}
             transition={{
-              y: { duration: 0.28, ease: [0.32, 0.72, 0, 1] },
-              opacity: { duration: 0 }
+              duration: 0.35,
+              ease: [0.25, 0.46, 0.45, 0.94]
             }}
             style={{ willChange: "transform" }}
             className="fixed inset-0 z-[99995] bg-app-bg flex flex-col pt-[calc(env(safe-area-inset-top,24px)+36px)] transform-gpu"
@@ -3417,10 +3420,10 @@ export default function App() {
         {showRadarMap && (
           <motion.div
             key="radar-map-root"
-            initial={{ x: "-100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "-100%" }}
-            transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+            initial={{ x: "-100%", opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "-100%", opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
             style={{ willChange: "transform" }}
             className="fixed inset-0 z-[120] bg-app-bg settings-panel flex flex-col transform-gpu"
             data-no-swipe

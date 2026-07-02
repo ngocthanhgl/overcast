@@ -2,11 +2,29 @@ const APP_ID     = process.env.ONESIGNAL_APP_ID;
 const REST_KEY   = process.env.ONESIGNAL_REST_KEY;
 const NOTIF_TYPE = process.argv[2];
 
-const FIREBASE_PROJECT_ID = "nimbus-8e720";
-const FIREBASE_API_KEY  =  "AIzaSyDhGKcNiaBmNTO0U6JSBo5mu5n0_vSevPM";
-const FIREBASE_DB_ID      = "(default)";
+const fs = require('fs');
+const path = require('path');
+
+let FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "nimbus-8e720";
+let FIREBASE_API_KEY  =  process.env.FIREBASE_API_KEY || "AIzaSyDhGKcNiaBmNTO0U6JSBo5mu5n0_vSevPM";
+let FIREBASE_DB_ID      = process.env.FIREBASE_DB_ID || "ai-studio-42655dd6-4763-475c-a28c-d0f99b200092";
+
+try {
+  const configPath = path.join(__dirname, '../firebase-applet-config.json');
+  if (fs.existsSync(configPath)) {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    FIREBASE_PROJECT_ID = config.projectId || FIREBASE_PROJECT_ID;
+    FIREBASE_API_KEY = config.apiKey || FIREBASE_API_KEY;
+    FIREBASE_DB_ID = config.firestoreDatabaseId || FIREBASE_DB_ID;
+    console.log("Loaded Firebase config from firebase-applet-config.json");
+  }
+} catch (e) {
+  console.log("Could not load config from json, using defaults:", e.message);
+}
 
 console.log("Script started, type:", NOTIF_TYPE);
+console.log("Using Firebase Project ID:", FIREBASE_PROJECT_ID);
+console.log("Using Firebase Database ID:", FIREBASE_DB_ID);
 
 const osHeaders = {
   "Content-Type": "application/json",
@@ -175,17 +193,25 @@ async function run() {
     }
 
     if (NOTIF_TYPE === "severe" && (user.alertSevere ?? true)) {
-      if (feels >= 42) {
+      if (feels >= 40) {
         await sendToPlayer(sub.id, `🔥 Extreme Heat Alert`,
-          `in ${cityName}\nFeels ${feels}°. Stay hydrated.`);
+          `in ${cityName}\nFeels ${feels}°C. Stay hydrated and avoid outdoor activity.`);
         sentCount++;
-      } else if (temp <= 2) {
+      } else if (temp <= 0) {
         await sendToPlayer(sub.id, `🥶 Extreme Cold Alert`,
-          `in ${cityName}\n${temp}°. Bundle up.`);
+          `in ${cityName}\nTemperature is ${temp}°C. Freezing conditions, bundle up.`);
         sentCount++;
       } else if (code >= 95) {
-        await sendToPlayer(sub.id, `⛈ Storm Alert`,
-          `in ${cityName}\nThunderstorm active. Stay indoors.`);
+        await sendToPlayer(sub.id, `⛈ Thunderstorm Alert`,
+          `in ${cityName}\nSevere thunderstorm active. Take shelter.`);
+        sentCount++;
+      } else if (code === 75 || code === 86) {
+        await sendToPlayer(sub.id, `❄️ Heavy Snow Alert`,
+          `in ${cityName}\nHeavy snow active. Dangerous travel conditions.`);
+        sentCount++;
+      } else if (code === 65 || code === 82) {
+        await sendToPlayer(sub.id, `🌧 Heavy Rain Alert`,
+          `in ${cityName}\nTorrential downpour active. Watch out for flooding.`);
         sentCount++;
       }
     }

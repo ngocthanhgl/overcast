@@ -2082,10 +2082,10 @@ const SettingsScreen = ({
             ref={languageScrollRef}
             id="language-page"
             data-no-swipe
-            initial={{ x: "40%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "40%" }}
-            transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+            initial={{ x: "100%", opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "100%", opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
             style={{ willChange: "transform" }}
             className="fixed inset-0 z-[1015] bg-app-bg overflow-y-auto overscroll-contain language-page touch-pan-y transform-gpu pointer-events-auto"
           >
@@ -2143,11 +2143,11 @@ const SettingsScreen = ({
             ref={scrollRef}
             id="subview-page"
             data-no-swipe
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
+            initial={{ x: "100%", opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "100%", opacity: 0 }}
             transition={{ 
-              duration: 0.3, 
+              duration: 0.35, 
               ease: [0.25, 0.46, 0.45, 0.94]
             }}
             style={{ willChange: "transform" }}
