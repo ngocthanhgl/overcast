@@ -2143,9 +2143,13 @@ export default function App() {
     localStorage.setItem('app_active_index', state.activeLocationIndex.toString());
 
     // Trigger 2 — Sync whenever settings or locations are updated (add, remove, reorder)
+    console.log("useEffect fired, locations:", 
+      state.locations?.length, 
+      "playerId attempt starting...");
     (async () => {
       try {
         const playerId = await initializeOneSignal();
+        console.log("initializeOneSignal returned:", playerId);
         if (playerId) {
           syncAllLocationsToFirebase(playerId, state.locations, state.settings);
         }
@@ -3420,9 +3424,9 @@ export default function App() {
         {showRadarMap && (
           <motion.div
             key="radar-map-root"
-            initial={{ x: "-100%", opacity: 0 }}
+            initial={{ x: "100%", opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: "-100%", opacity: 0 }}
+            exit={{ x: "100%", opacity: 0 }}
             transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
             style={{ willChange: "transform" }}
             className="fixed inset-0 z-[120] bg-app-bg settings-panel flex flex-col transform-gpu"

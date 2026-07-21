@@ -625,6 +625,8 @@ export async function syncAllLocationsToFirebase(
   locations: Location[],
   settings: Settings
 ): Promise<boolean> {
+  console.log("syncAllLocationsToFirebase called:", 
+    playerId, locations?.length, "locations");
   if (!playerId || !locations || locations.length === 0) {
     return false;
   }
@@ -674,6 +676,9 @@ export async function syncAllLocationsToFirebase(
     }
   };
 
+  console.log("Firestore URL:", url);
+  console.log("Firestore body:", JSON.stringify(body));
+
   try {
     const response = await fetch(url, {
       method: 'PATCH',
@@ -684,9 +689,12 @@ export async function syncAllLocationsToFirebase(
       body: JSON.stringify(body)
     });
 
+    console.log("Firestore response status:", response.status);
+    const responseText = await response.text();
+    console.log("Firestore response body:", responseText);
+
     if (!response.ok) {
-      const err = await response.text();
-      console.warn('Firestore sync failed:', response.status, err);
+      console.warn('Firestore sync failed:', response.status, responseText);
       return false;
     }
 
