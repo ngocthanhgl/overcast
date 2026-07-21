@@ -122,6 +122,156 @@ export function HourlyForecast({ weather, settings }: ForecastProps) {
 
   const isDetailed = settings.layoutHourlyForecast !== 'compact';
 
+  // --- CUSTOM ULTRA-SENSITIVE horizontal drag-scrolling with buttery momentum ---
+  const isDragging = React.useRef(false);
+  const startX = React.useRef(0);
+  const startY = React.useRef(0);
+  const startScrollLeft = React.useRef(0);
+  const velocity = React.useRef(0);
+  const lastTouchTime = React.useRef(0);
+  const lastTouchX = React.useRef(0);
+  const rafInertia = React.useRef<number | null>(null);
+  const isScrollingVertically = React.useRef(false);
+  const hasDeterminedDirection = React.useRef(false);
+
+  // Stop momentum slide immediately
+  const stopMomentum = React.useCallback(() => {
+    if (rafInertia.current) {
+      cancelAnimationFrame(rafInertia.current);
+      rafInertia.current = null;
+    }
+  }, []);
+
+  const startMomentum = React.useCallback((initialVelocity: number) => {
+    stopMomentum();
+
+    let vel = initialVelocity;
+    const friction = 0.95; // Decay factor for friction
+
+    const step = () => {
+      if (!scrollRef.current) return;
+      
+      scrollRef.current.scrollLeft -= vel;
+      vel *= friction;
+
+      if (Math.abs(vel) > 0.3) {
+        rafInertia.current = requestAnimationFrame(step);
+      } else {
+        rafInertia.current = null;
+      }
+    };
+
+    rafInertia.current = requestAnimationFrame(step);
+  }, [stopMomentum]);
+
+  const handleDragStart = React.useCallback((clientX: number, clientY: number) => {
+    stopMomentum();
+
+    isDragging.current = true;
+    isScrollingVertically.current = false;
+    hasDeterminedDirection.current = false;
+    startX.current = clientX;
+    startY.current = clientY;
+    startScrollLeft.current = scrollRef.current ? scrollRef.current.scrollLeft : 0;
+    
+    lastTouchTime.current = Date.now();
+    lastTouchX.current = clientX;
+    velocity.current = 0;
+
+    if (typeof window !== 'undefined') {
+      (window as any).isInteractingWithHourly = true;
+    }
+  }, [stopMomentum]);
+
+  const handleDragMove = React.useCallback((clientX: number, clientY: number, preventDefaultFn: () => void) => {
+    if (!isDragging.current || !scrollRef.current) return;
+
+    const currentX = clientX;
+    const currentY = clientY;
+    const currentTime = Date.now();
+    
+    const deltaX = currentX - startX.current;
+    const deltaY = currentY - startY.current;
+
+    // Filter vertical gestures from horizontal swipe
+    if (!hasDeterminedDirection.current) {
+      if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 6) {
+        isScrollingVertically.current = true;
+        isDragging.current = false;
+        hasDeterminedDirection.current = true;
+        return;
+      } else if (Math.abs(deltaX) > 6) {
+        isScrollingVertically.current = false;
+        hasDeterminedDirection.current = true;
+      }
+    }
+
+    if (isScrollingVertically.current) return;
+
+    // Track frame velocity (pixels per millisecond)
+    const dt = currentTime - lastTouchTime.current;
+    if (dt > 0) {
+      const dx = currentX - lastTouchX.current;
+      velocity.current = (dx / dt) * 16; // approx pixels per frame at 60fps
+    }
+
+    lastTouchTime.current = currentTime;
+    lastTouchX.current = currentX;
+
+    // Sensitivity multiplier: increased by 200% means we scroll 3.0x further!
+    const sensitivityMultiplier = 3.0;
+    scrollRef.current.scrollLeft = startScrollLeft.current - deltaX * sensitivityMultiplier;
+
+    // Prevent scrolling parent card or page
+    preventDefaultFn();
+  }, []);
+
+  const handleDragEnd = React.useCallback(() => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        (window as any).isInteractingWithHourly = false;
+      }, 200);
+    }
+
+    // Butter momentum deceleration
+    if (Math.abs(velocity.current) > 0.5 && !isScrollingVertically.current) {
+      startMomentum(velocity.current * 2.5); // Highly responsive momentum glide
+    }
+  }, [startMomentum]);
+
+  // Touch triggers
+  const handleTouchStart = React.useCallback((e: React.TouchEvent) => {
+    handleDragStart(e.touches[0].clientX, e.touches[0].clientY);
+  }, [handleDragStart]);
+
+  const handleTouchMove = React.useCallback((e: React.TouchEvent) => {
+    handleDragMove(e.touches[0].clientX, e.touches[0].clientY, () => {
+      if (e.cancelable) e.preventDefault();
+    });
+  }, [handleDragMove]);
+
+  const handleTouchEnd = React.useCallback(() => {
+    handleDragEnd();
+  }, [handleDragEnd]);
+
+  // Mouse drag triggers
+  const handleMouseDown = React.useCallback((e: React.MouseEvent) => {
+    handleDragStart(e.clientX, e.clientY);
+  }, [handleDragStart]);
+
+  const handleMouseMove = React.useCallback((e: React.MouseEvent) => {
+    if (e.buttons === 1) {
+      handleDragMove(e.clientX, e.clientY, () => e.preventDefault());
+    }
+  }, [handleDragMove]);
+
+  const handleMouseUp = React.useCallback(() => {
+    handleDragEnd();
+  }, [handleDragEnd]);
+
   React.useEffect(() => {
     return () => {
       if (scrollTimeoutRef.current) {
@@ -131,8 +281,9 @@ export function HourlyForecast({ weather, settings }: ForecastProps) {
         (window as any).isScrollingHourly = false;
         (window as any).isInteractingWithHourly = false;
       }
+      stopMomentum();
     };
-  }, []);
+  }, [stopMomentum]);
 
   if (!weather || !weather.hourly || !weather.daily) return null;
 
@@ -266,28 +417,14 @@ export function HourlyForecast({ weather, settings }: ForecastProps) {
           <div 
             ref={scrollRef}
             onScroll={handleScroll}
-            onTouchStart={() => { if (typeof window !== 'undefined') (window as any).isInteractingWithHourly = true; }}
-            onTouchEnd={() => { 
-              if (typeof window !== 'undefined') {
-                setTimeout(() => { (window as any).isInteractingWithHourly = false; }, 200);
-              }
-            }}
-            onTouchCancel={() => { 
-              if (typeof window !== 'undefined') {
-                setTimeout(() => { (window as any).isInteractingWithHourly = false; }, 200);
-              }
-            }}
-            onPointerDown={() => { if (typeof window !== 'undefined') (window as any).isInteractingWithHourly = true; }}
-            onPointerUp={() => { 
-              if (typeof window !== 'undefined') {
-                setTimeout(() => { (window as any).isInteractingWithHourly = false; }, 200);
-              }
-            }}
-            onPointerCancel={() => { 
-              if (typeof window !== 'undefined') {
-                setTimeout(() => { (window as any).isInteractingWithHourly = false; }, 200);
-              }
-            }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
             className="flex gap-0 overflow-x-auto no-scrollbar pb-1 -mx-6 px-6 snap-x snap-mandatory scroll-smooth will-change-transform relative z-10"
             data-no-swipe
           >
@@ -422,28 +559,14 @@ export function HourlyForecast({ weather, settings }: ForecastProps) {
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
-        onTouchStart={() => { if (typeof window !== 'undefined') (window as any).isInteractingWithHourly = true; }}
-        onTouchEnd={() => { 
-          if (typeof window !== 'undefined') {
-            setTimeout(() => { (window as any).isInteractingWithHourly = false; }, 200);
-          }
-        }}
-        onTouchCancel={() => { 
-          if (typeof window !== 'undefined') {
-            setTimeout(() => { (window as any).isInteractingWithHourly = false; }, 200);
-          }
-        }}
-        onPointerDown={() => { if (typeof window !== 'undefined') (window as any).isInteractingWithHourly = true; }}
-        onPointerUp={() => { 
-          if (typeof window !== 'undefined') {
-            setTimeout(() => { (window as any).isInteractingWithHourly = false; }, 200);
-          }
-        }}
-        onPointerCancel={() => { 
-          if (typeof window !== 'undefined') {
-            setTimeout(() => { (window as any).isInteractingWithHourly = false; }, 200);
-          }
-        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
         className="flex gap-3 overflow-x-auto no-scrollbar pb-4 px-6 snap-x snap-mandatory scroll-smooth will-change-transform"
         data-no-swipe
       >

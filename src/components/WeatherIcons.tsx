@@ -286,13 +286,13 @@ function getSvgFilename(name: string): string {
   return 'weather.svg';
 }
 
-export const WeatherIcon = ({ name, style: propStyle = 'outline', className, strokeWidth = 1.4, forceColoured = false, isSettingsPreview = false, bypassDelay = false }: WeatherIconProps) => {
+export const WeatherIcon = React.memo(({ name, style: propStyle = 'outline', className, strokeWidth = 1.4, forceColoured = false, isSettingsPreview = false, bypassDelay = false }: WeatherIconProps) => {
   const [isStaticDelay, setIsStaticDelay] = useState(() => {
     if (bypassDelay) return false;
     const lastSwitch = (window as any).lastCitySwitchTime || 0;
     if (lastSwitch === 0) {
-      (window as any).lastCitySwitchTime = Date.now();
-      return true;
+      // Do not block/delay animations on first load! We want the animations to run instantly and smoothly!
+      return false;
     }
     return (Date.now() - lastSwitch) < 2000;
   });
@@ -641,6 +641,6 @@ export const WeatherIcon = ({ name, style: propStyle = 'outline', className, str
   }
 
   return <Icon className={className} strokeWidth={strokeWidth} />;
-};
+});
 
 export const Icons = RawIcons;
