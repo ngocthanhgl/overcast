@@ -2,7 +2,8 @@ const APP_ID     = process.env.ONESIGNAL_APP_ID;
 const REST_KEY   = process.env.ONESIGNAL_REST_KEY;
 const NOTIF_TYPE = process.argv[2];
 
-const fs = require('fs');
+import { readFileSync } from 'fs';
+import { createRequire } from 'module';
 const path = require('path');
 
 let FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "nimbus-8e720";
