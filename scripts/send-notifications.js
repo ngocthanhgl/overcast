@@ -2,30 +2,13 @@ const APP_ID     = process.env.ONESIGNAL_APP_ID;
 const REST_KEY   = process.env.ONESIGNAL_REST_KEY;
 const NOTIF_TYPE = process.argv[2];
 
-import { readFileSync } from 'fs';
-import { createRequire } from 'module';
-const path = require('path');
-
-let FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "nimbus-8e720";
-let FIREBASE_API_KEY  =  process.env.FIREBASE_API_KEY || "AIzaSyDhGKcNiaBmNTO0U6JSBo5mu5n0_vSevPM";
-let FIREBASE_DB_ID      = process.env.FIREBASE_DB_ID || "ai-studio-42655dd6-4763-475c-a28c-d0f99b200092";
-
-try {
-  const configPath = path.join(__dirname, '../firebase-applet-config.json');
-  if (fs.existsSync(configPath)) {
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    FIREBASE_PROJECT_ID = config.projectId || FIREBASE_PROJECT_ID;
-    FIREBASE_API_KEY = config.apiKey || FIREBASE_API_KEY;
-    FIREBASE_DB_ID = config.firestoreDatabaseId || FIREBASE_DB_ID;
-    console.log("Loaded Firebase config from firebase-applet-config.json");
-  }
-} catch (e) {
-  console.log("Could not load config from json, using defaults:", e.message);
-}
+const FIREBASE_PROJECT_ID = "nimbus-8e720";
+const FIREBASE_API_KEY    = "AIzaSyDhGKcNiaBmNTO0U6JSBo5mu5n0_vSevPM";
+const FIREBASE_DB_ID      = "ai-studio-42655dd6-4763-475c-a28c-d0f99b200092";
 
 console.log("Script started, type:", NOTIF_TYPE);
-console.log("Using Firebase Project ID:", FIREBASE_PROJECT_ID);
-console.log("Using Firebase Database ID:", FIREBASE_DB_ID);
+console.log("APP_ID present:", !!APP_ID);
+console.log("REST_KEY present:", !!REST_KEY);
 
 const osHeaders = {
   "Content-Type": "application/json",
@@ -37,12 +20,10 @@ async function getSubscribers() {
     `https://onesignal.com/api/v1/players?app_id=${APP_ID}&limit=300`,
     { headers: osHeaders }
   );
-
   if (!res.ok) {
-    console.error("Failed to get subscribers:", res.status, await res.text());
+    console.error("Failed:", res.status, await res.text());
     return [];
   }
-
   const data = await res.json();
   console.log("Total subscribers:", data.players?.length || 0);
   return data.players || [];
@@ -53,46 +34,35 @@ async function getUserFromFirestore(playerId) {
     `https://firestore.googleapis.com/v1/projects/` +
     `${FIREBASE_PROJECT_ID}/databases/${FIREBASE_DB_ID}` +
     `/documents/users/${playerId}?key=${FIREBASE_API_KEY}`;
-
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
-
     const data = await res.json();
     if (!data.fields) return null;
-
     const f = data.fields;
-
-    // Parse the locations array
     const locationValues = f.locations?.arrayValue?.values || [];
     const locations = locationValues.map(v => {
       const m = v.mapValue?.fields || {};
       return {
         name: m.name?.stringValue || "your area",
-        lat:  parseFloat(m.lat?.doubleValue || 0),
-        lon:  parseFloat(m.lon?.doubleValue || 0),
+        lat:  parseFloat(m.lat?.doubleValue  || 0),
+        lon:  parseFloat(m.lon?.doubleValue  || 0),
         isCurrent: m.isCurrent?.booleanValue || false,
       };
     });
-
     if (locations.length === 0) return null;
-
-    // Use current location if marked, otherwise first in list
     const primary = locations.find(l => l.isCurrent) || locations[0];
-
     if (!primary.lat || !primary.lon) return null;
-
     return {
       cityName: primary.name,
       lat:      primary.lat,
       lon:      primary.lon,
-      allLocations: locations,
       alertMorning: f.alertMorningSummaryEnabled?.booleanValue ?? true,
       alertNight:   f.alertNightSummaryEnabled?.booleanValue   ?? true,
       alertSevere:  f.alertSevereEnabled?.booleanValue         ?? true,
     };
   } catch (e) {
-    console.warn("Firestore error for", playerId.slice(0,8), ":", e.message);
+    console.warn("Firestore error:", e.message);
     return null;
   }
 }
@@ -133,38 +103,33 @@ async function sendToPlayer(playerId, title, body) {
       contents:           { en: body },
     }),
   });
-
   if (!res.ok) {
     console.error("Send failed:", res.status, await res.text());
     return;
   }
-
   const result = await res.json();
   console.log("Sent:", title, "→ recipients:", result.recipients);
 }
 
 async function run() {
   const subscribers = await getSubscribers();
-
   if (subscribers.length === 0) {
     console.log("No subscribers. Exiting.");
     return;
   }
 
-  let sentCount = 0;
-  let skippedCount = 0;
+  let sent = 0;
+  let skipped = 0;
 
   for (const sub of subscribers) {
     const user = await getUserFromFirestore(sub.id);
-
     if (!user) {
-      skippedCount++;
+      skipped++;
       continue;
     }
 
     const { cityName, lat, lon } = user;
-    console.log("Processing:", cityName, `(${lat}, ${lon})`,
-      "- total cities:", user.allLocations.length);
+    console.log("Processing:", cityName);
 
     const weather      = await getWeather(lat, lon);
     const temp         = Math.round(weather.current.temperature_2m);
@@ -176,51 +141,49 @@ async function run() {
     const tomorrowCode = weather.daily.weather_code[1];
 
     if (NOTIF_TYPE === "morning" && (user.alertMorning ?? true)) {
-      await sendToPlayer(
-        sub.id,
-        `${temp}° now · Good Morning ☀️`,
-        `in ${cityName}\nfeels ${feels}°\nH:${high}° L:${low}°`
+      await sendToPlayer(sub.id,
+        `${temp}° · Good Morning ☀️`,
+        `in ${cityName} · feels ${feels}° · H:${high}° L:${low}°`
       );
-      sentCount++;
+      sent++;
     }
 
     if (NOTIF_TYPE === "night" && (user.alertNight ?? true)) {
-      await sendToPlayer(
-        sub.id,
+      await sendToPlayer(sub.id,
         `${tomorrowHigh}° high tomorrow 🌙`,
-        `in ${cityName}\n${getCondition(tomorrowCode)} overnight`
+        `in ${cityName} · ${getCondition(tomorrowCode)} overnight`
       );
-      sentCount++;
+      sent++;
     }
 
     if (NOTIF_TYPE === "severe" && (user.alertSevere ?? true)) {
-      if (feels >= 40) {
-        await sendToPlayer(sub.id, `🔥 Extreme Heat Alert`,
-          `in ${cityName}\nFeels ${feels}°C. Stay hydrated and avoid outdoor activity.`);
-        sentCount++;
-      } else if (temp <= 0) {
-        await sendToPlayer(sub.id, `🥶 Extreme Cold Alert`,
-          `in ${cityName}\nTemperature is ${temp}°C. Freezing conditions, bundle up.`);
-        sentCount++;
+      if (feels >= 42) {
+        await sendToPlayer(sub.id,
+          `🔥 Extreme Heat Alert`,
+          `in ${cityName} · Feels ${feels}°. Stay hydrated.`
+        );
+        sent++;
+      } else if (temp <= 2) {
+        await sendToPlayer(sub.id,
+          `🥶 Extreme Cold Alert`,
+          `in ${cityName} · ${temp}°. Bundle up.`
+        );
+        sent++;
       } else if (code >= 95) {
-        await sendToPlayer(sub.id, `⛈ Thunderstorm Alert`,
-          `in ${cityName}\nSevere thunderstorm active. Take shelter.`);
-        sentCount++;
-      } else if (code === 75 || code === 86) {
-        await sendToPlayer(sub.id, `❄️ Heavy Snow Alert`,
-          `in ${cityName}\nHeavy snow active. Dangerous travel conditions.`);
-        sentCount++;
-      } else if (code === 65 || code === 82) {
-        await sendToPlayer(sub.id, `🌧 Heavy Rain Alert`,
-          `in ${cityName}\nTorrential downpour active. Watch out for flooding.`);
-        sentCount++;
+        await sendToPlayer(sub.id,
+          `⛈ Storm Alert`,
+          `in ${cityName} · Thunderstorm active. Stay indoors.`
+        );
+        sent++;
+      } else {
+        console.log("No severe conditions for:", cityName);
       }
     }
 
     await new Promise(r => setTimeout(r, 200));
   }
 
-  console.log(`Done. Sent: ${sentCount}, Skipped (no Firestore data): ${skippedCount}`);
+  console.log(`Done. Sent: ${sent} Skipped: ${skipped}`);
 }
 
 run().catch(err => {
