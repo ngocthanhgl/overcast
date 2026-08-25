@@ -2839,17 +2839,6 @@ export default function App() {
 
   const isAnyModalOpen = state.showSettings || showCityManager || showRadarMap || showSearch || showDailyForecastDetail;
 
-  // Android hardware back button: route to in-app back handler when any screen/modal is open
-  useEffect(() => {
-    const w = window as unknown as { __overcastBackHandler?: () => void };
-    if (isAnyModalOpen || showDailyForecastDetail) {
-      w.__overcastBackHandler = handleBack;
-    } else {
-      delete w.__overcastBackHandler;
-    }
-    return () => { delete w.__overcastBackHandler; };
-  }, [isAnyModalOpen, showDailyForecastDetail, handleBack]);
-
   const weatherContent = React.useMemo(() => {
     if (!activeWeather || !activeLocation) return null;
     
@@ -3047,26 +3036,6 @@ export default function App() {
       className="min-h-screen bg-app-bg text-app-text font-sans selection:bg-app-text/20 transition-colors duration-500 relative"
     >
       {/* Background is clean light theme */}
-      {/* Status bar scrim — blurs content that scrolls under system status bar */}
-      <div
-        id="status-bar-scrim"
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '100%',
-          maxWidth: '390px',
-          height: 'max(36px, calc(env(safe-area-inset-top) + 8px))',
-          pointerEvents: 'none',
-          zIndex: 95,
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
-          background: 'linear-gradient(to bottom, rgba(var(--bg-primary-rgb), 0.5), transparent)',
-          WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent)',
-          maskImage: 'linear-gradient(to bottom, black 55%, transparent)',
-        }}
-      />
       <div
         id="ui-overlay"
         className={cn(
@@ -3129,7 +3098,7 @@ export default function App() {
             }}
           >
             <motion.div className={cn(
-              "absolute left-6 top-[24px]",
+              "absolute left-6 top-[calc(env(safe-area-inset-top,24px)+36px)]",
               (state.showSettings || showCityManager || showRadarMap) ? "pointer-events-none" : "pointer-events-auto"
             )}>
               <motion.button 
@@ -3164,7 +3133,7 @@ export default function App() {
 
             {/* Settings Button - Top Right */}
             <motion.div className={cn(
-              "absolute right-6 top-[24px] z-30",
+              "absolute right-6 top-[calc(env(safe-area-inset-top,24px)+36px)] z-30",
               (state.showSettings || showCityManager || showRadarMap) ? "pointer-events-none" : "pointer-events-auto"
             )}>
               <motion.button 
@@ -3201,7 +3170,7 @@ export default function App() {
 
 
             {/* City Name & Pagination - Center */}
-            <div className="absolute top-[24px] left-1/2 -translate-x-1/2 w-[calc(100%-160px)] max-w-[230px] flex flex-col items-center pointer-events-none mt-2">
+            <div className="absolute top-[calc(env(safe-area-inset-top,24px)+36px)] left-1/2 -translate-x-1/2 w-[calc(100%-160px)] max-w-[230px] flex flex-col items-center pointer-events-none mt-2">
               <AnimatePresence mode="wait">
                 {state.locations.length > 0 && (
                   <motion.div 
@@ -3421,16 +3390,6 @@ export default function App() {
       <AnimatePresence>
         {showRadarMap && (
           <motion.div
-            key="radar-scrim"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="fixed inset-0 z-[119] bg-app-bg/60 backdrop-blur-md pointer-events-none"
-          />
-        )}
-        {showRadarMap && (
-          <motion.div
             key="radar-map-root"
             initial={{ x: "100%", opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -3481,8 +3440,8 @@ export default function App() {
         className={cn(
           "max-w-[390px] mx-auto px-4 sm:px-[21px] pb-32 min-h-screen relative touch-pan-y bottom-content transition-[opacity,transform,padding-top] duration-250 ease-out",
           state.settings.layoutWeatherDetail === 'compact'
-            ? "pt-[24px]"
-            : "pt-[116px]",
+            ? "pt-[calc(env(safe-area-inset-top,24px)+24px)]"
+            : "pt-[calc(env(safe-area-inset-top,24px)+116px)]",
           isAnyModalOpen ? "pointer-events-none" : ""
         )}
       >
