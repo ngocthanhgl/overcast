@@ -103,7 +103,7 @@ export default function WeatherRadarMap({ activeLocation, onClose, hapticEnabled
   // Construct Windy Embed URL centering on the active city coordinates
   const lat = activeLocation.latitude.toFixed(4);
   const lon = activeLocation.longitude.toFixed(4);
-  const embedUrl = `https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&zoom=6&level=surface&overlay=${activeLayer}&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default`;
+  const embedUrl = `https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&zoom=6&level=surface&overlay=${activeLayer}&menu=false&message=false&marker=true&calendar=now&type=map&location=coordinates&metricWind=default&metricTemp=default`;
 
   return (
     <>
@@ -174,9 +174,6 @@ export default function WeatherRadarMap({ activeLocation, onClose, hapticEnabled
           className="flex-1 w-full relative rounded-[28px] overflow-hidden border border-app-border bg-[#08080a] shadow-2xl group flex flex-col justify-center items-center"
           style={{ touchAction: 'none' }}
         >
-          {/* Subtle meteorological coordinate blueprint grid */}
-          <div className="absolute inset-0 opacity-15 bg-[linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
-          
           {isOffline || isWeakNetwork ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-black/80 z-20 gap-4">
               <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-2">
@@ -202,6 +199,8 @@ export default function WeatherRadarMap({ activeLocation, onClose, hapticEnabled
                   src={embedUrl}
                   className="w-full h-full border-0 rounded-[28px] select-none relative z-10"
                   style={{ touchAction: 'none' }}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
                   allowFullScreen
                   onLoad={() => setIframeLoading(false)}
                 />

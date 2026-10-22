@@ -6,6 +6,13 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local Android packaging artifacts
 .keystore/
-android/
 apk-out/
+android/
+*.apk
+*.aab
+
+# Local UI verification artifacts
+.playwright-mcp/

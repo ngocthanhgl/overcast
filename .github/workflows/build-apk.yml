@@ -3,25 +3,22 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [dev, main]
+    branches:
+      - dev
+
+permissions:
+  contents: write
 
 jobs:
-  build-apk:
+  apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
-
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+          node-version: 22
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -29,38 +26,99 @@ jobs:
       - name: Build web app
         run: npm run build
 
-      - name: Install Capacitor and assets tool (CI only)
-        run: npm install --no-save @capacitor/core@^6 @capacitor/cli@^6 @capacitor/android@^6 @capacitor/app@^6 @capacitor/assets
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
-      - name: Init Capacitor and add Android platform
+      - name: Install Android SDK packages
         run: |
-          npx cap init Overcast app.overcast.pwa --web-dir dist
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n1)
+          if [ -z "$SDKMANAGER" ]; then
+            echo "::error::sdkmanager not found under $ANDROID_HOME"
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+
+      - name: Scaffold Capacitor Android shell
+        run: |
+          npm i --no-save @capacitor/cli@6 @capacitor/android@6 @capacitor/assets
+          cat > capacitor.config.json <<'JSON'
+          {
+            "appId": "app.overcast.pwa",
+            "appName": "Overcast",
+            "webDir": "dist",
+            "server": { "androidScheme": "https" }
+          }
+          JSON
           npx cap add android
           npx cap sync android
 
-      - name: Generate app icons and splash
+      - name: Generate app icon and splash screen
         run: npx capacitor-assets generate --android --iconBackgroundColor '#dbe4eb'
 
-      - name: Decode release keystore
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
-
-      - name: Patch Gradle signing config
-        run: node scripts/patch-android-signing.js
+      - name: Stamp version
+        run: |
+          sed -i "s/versionCode 1$/versionCode $((100 + ${GITHUB_RUN_NUMBER}))/" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"1.0.${GITHUB_RUN_NUMBER}\"/" android/app/build.gradle
 
       - name: Build signed release APK
-        working-directory: android
         env:
-          KEYSTORE_FILE: ${{ github.workspace }}/android/app/upload-keystore.jks
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEY_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEYSTORE_PASSWORD:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
+            echo "::error::Release signing secrets are missing. This workflow never ships a debug-signed APK."
+            exit 1
+          fi
 
-      - name: Upload signed release APK artifact
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+          UNSIGNED=$(find app/build/outputs/apk/release -name '*-unsigned.apk' | head -n1)
+          if [ -z "$UNSIGNED" ]; then UNSIGNED=$(find app/build/outputs/apk/release -name '*.apk' | head -n1); fi
+
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/34.0.0"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$RUNNER_TEMP/release.jks" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --out "$RUNNER_TEMP/overcast.apk" \
+            "$RUNNER_TEMP/aligned.apk"
+          "$BUILD_TOOLS/apksigner" verify "$RUNNER_TEMP/overcast.apk"
+
+          APK_NAME="overcast-release-${{ github.run_number }}.apk"
+          cp "$RUNNER_TEMP/overcast.apk" "$GITHUB_WORKSPACE/$APK_NAME"
+          echo "APK_NAME=$APK_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: overcast-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
+          name: overcast-apk-${{ github.run_number }}
+          path: ${{ env.APK_NAME }}
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Overcast v1.0.${{ github.run_number }}
+          prerelease: false
+          body: |
+            Automated Android build from ${{ github.sha }}.
+
+            - App ID: `app.overcast.pwa`
+            - Signed release APK, installs over previous builds signed with the same key.
+          files: ${{ env.APK_NAME }}

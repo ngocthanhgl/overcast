@@ -1,4 +1,11 @@
 import { Location, WeatherData } from '../types';
+import type { ProviderId, ProviderWeather } from './providers/types';
+import { getProvider } from './providers/registry';
+import { getActiveProviderId } from './providers/active';
+import { buildOpenMeteoForecastUrl } from './providers/openmeteo';
+import { fetchMetNoWeather } from './providers/metno';
+import { fetchWttrWeather } from './providers/wttr';
+
 
 // --- Safe Fetch Mechanism with Timeout & Retry ---
 
@@ -213,27 +220,8 @@ export const getCurrentHourIndex = (timezone: string, hourlyTimes?: string[]) =>
 
 // --- STEP 2 — SINGLE OPEN-METEO FETCH FUNCTION ---
 
-export const fetchAllWeatherData = async (lat: number, lon: number): Promise<any> => {
-  const url = 
-    `https://api.open-meteo.com/v1/forecast` +
-    `?latitude=${lat}` +
-    `&longitude=${lon}` +
-    `&current=temperature_2m,relative_humidity_2m,` +
-    `apparent_temperature,weather_code,` +
-    `wind_speed_10m,wind_direction_10m,` +
-    `surface_pressure,precipitation,visibility` +
-    `&hourly=temperature_2m,weather_code,` +
-    `precipitation_probability,precipitation,` +
-    `wind_speed_10m,visibility,uv_index,` +
-    `relative_humidity_2m` +
-    `&daily=weather_code,temperature_2m_max,` +
-    `temperature_2m_min,sunrise,sunset,` +
-    `precipitation_probability_max,` +
-    `wind_speed_10m_max,uv_index_max,` +
-    `precipitation_sum` +
-    `&timezone=auto` +
-    `&wind_speed_unit=ms` +
-    `&forecast_days=8`;
+export const fetchAllWeatherData = async (lat: number, lon: number, models?: string): Promise<any> => {
+  const url = buildOpenMeteoForecastUrl(lat, lon, { models });
 
   const res = await safeFetch(url);
 
@@ -591,51 +579,82 @@ export function getAQIFromCacheOrLive(cityKey: string): any {
   return null;
 }
 
-export async function fetchWeather(lat: number, lon: number, timezone: string, cityName?: string, countryCode?: string): Promise<WeatherData> {
-  const res = await fetchAllWeatherData(lat, lon);
-  if (!res) {
-    const cityKey = `${cityName || 'unknown'}_${lat.toFixed(2)}_${lon.toFixed(2)}`
-      .replace(/\s+/g, "_")
-      .toLowerCase();
+const EMPTY_CURRENT: WeatherData['current'] = {
+  time: new Date().toISOString(),
+  temperature: 0,
+  relativeHumidity: 0,
+  weatherCode: 0,
+  windSpeed: 0,
+  windDirection: 0,
+  apparentTemperature: 0,
+  isDay: true,
+  visibility: 0,
+  surfacePressure: 0,
+  precipitation: 0,
+  uvIndex: 0,
+};
 
-    // Try parsing from localStorage cache
-    if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
-      try {
-        const cacheRaw = localStorage.getItem('app_weather_cache');
-        if (cacheRaw) {
-          const cache = JSON.parse(cacheRaw);
-          const cached = cache[cityKey];
-          if (cached && cached.data) {
-            const d = cached.data;
-            if (d.current && d.hourly && d.daily && d.timezone) {
-              console.log(`[Cache-Fallback] Network fetch failed for ${cityName || 'unknown'}, returning cached weather data.`);
-              return d;
-            }
-          }
-        }
-      } catch (e) {
-        console.warn("[Cache-Fallback] Failed to retrieve cached weather:", e);
-      }
-    }
+const EMPTY_HOURLY: WeatherData['hourly'] = {
+  time: [],
+  temperature: [],
+  weatherCode: [],
+  precipitationProbability: [],
+  windDirection: [],
+};
 
-    console.warn(`[Fallback] Fetch failed and no valid cache found for ${cityName || 'unknown'}. Generating offline placeholder weather data.`);
-    return getFallbackWeatherData(lat, lon, timezone, cityName, countryCode);
-  }
+const EMPTY_DAILY: WeatherData['daily'] = {
+  time: [],
+  weatherCode: [],
+  temperatureMax: [],
+  temperatureMin: [],
+  sunrise: [],
+  sunset: [],
+  moonrise: [],
+  moonset: [],
+  uvIndex: [],
+  moonPhase: [],
+  precipitationSum: [],
+};
+
+const UNAVAILABLE_AIR_QUALITY: NonNullable<WeatherData['airQuality']> = {
+  usAqi: 0,
+  description: 'Unavailable',
+  color: '#94a3b8',
+  recommendation: 'Air quality data unavailable',
+  standard: 'US',
+  standardLabel: 'AQI · US Standard',
+  isUnavailable: true,
+};
+
+function cityCacheKey(cityName: string | undefined, lat: number, lon: number): string {
+  return `${cityName || 'unknown'}_${lat.toFixed(2)}_${lon.toFixed(2)}`
+    .replace(/\s+/g, "_")
+    .toLowerCase();
+}
+
+async function fetchOpenMeteoWeather(
+  lat: number,
+  lon: number,
+  timezone: string,
+  cityName?: string,
+  countryCode?: string,
+  models?: string
+): Promise<WeatherData | null> {
+  const res = await fetchAllWeatherData(lat, lon, models);
+  if (!res) return null;
 
   const currentParsed = parseCurrentWeather(res);
   const sunParsed = parseSunriseSunset(res, res.timezone || timezone || 'UTC');
 
   // Attempt to recover previously cached Air Quality Data for this city if the current fetch holds or fails
-  const cityKey = `${cityName || 'unknown'}_${lat.toFixed(2)}_${lon.toFixed(2)}`
-    .replace(/\s+/g, "_")
-    .toLowerCase();
+  const cityKey = cityCacheKey(cityName, lat, lon);
   const cachedAqi = getAQIFromCacheOrLive(cityKey);
 
   const aqiData = await getAQIDataWithFallback(lat, lon, cityName || "Unknown", countryCode).catch(() => null);
 
   const resolvedTimezone = res.timezone || timezone || 'UTC';
 
-  const weatherData: WeatherData = {
+  return {
     current: {
       time: res.current?.time || new Date().toISOString(),
       temperature: currentParsed?.temp ?? 0,
@@ -654,7 +673,7 @@ export async function fetchWeather(lat: number, lon: number, timezone: string, c
         }
         return true;
       })(),
-      visibility: Number(currentParsed?.visibility ?? 10) * 1000, 
+      visibility: Number(currentParsed?.visibility ?? 10) * 1000,
       surfacePressure: currentParsed?.pressure ?? 1013,
       precipitation: res.current?.precipitation ?? 0,
       uvIndex: currentParsed?.uvIndex ?? 0,
@@ -709,9 +728,137 @@ export async function fetchWeather(lat: number, lon: number, timezone: string, c
     fetchedAt: Date.now(),
     timezone: resolvedTimezone,
   };
-
-  return weatherData;
 }
+
+function readCacheOrPlaceholder(
+  lat: number,
+  lon: number,
+  timezone: string,
+  cityName?: string,
+  countryCode?: string
+): WeatherData {
+  const cityKey = cityCacheKey(cityName, lat, lon);
+
+  // Try parsing from localStorage cache
+  if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
+    try {
+      const cacheRaw = localStorage.getItem('app_weather_cache');
+      if (cacheRaw) {
+        const cache = JSON.parse(cacheRaw);
+        const cached = cache[cityKey];
+        if (cached && cached.data) {
+          const d = cached.data;
+          if (d.current && d.hourly && d.daily && d.timezone) {
+            console.log(`[Cache-Fallback] Network fetch failed for ${cityName || 'unknown'}, returning cached weather data.`);
+            return d;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[Cache-Fallback] Failed to retrieve cached weather:", e);
+    }
+  }
+
+  console.warn(`[Fallback] Fetch failed and no valid cache found for ${cityName || 'unknown'}. Generating offline placeholder weather data.`);
+  return getFallbackWeatherData(lat, lon, timezone, cityName, countryCode);
+}
+
+function definedArrays<T extends object>(source: Partial<T> | undefined): Partial<T> {
+  const result: any = {};
+  if (!source) return result;
+  for (const [key, value] of Object.entries(source)) {
+    if (Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null) {
+      result[key] = value;
+    }
+  }
+  return result as Partial<T>;
+}
+
+function definedValues<T extends object>(source: Partial<T> | undefined): Partial<T> {
+  const result: any = {};
+  if (!source) return result;
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined || value === null) continue;
+    if (typeof value === 'number' && !Number.isFinite(value)) continue;
+    result[key] = value;
+  }
+  return result as Partial<T>;
+}
+
+/**
+ * Overlay a provider payload on top of the Open-Meteo baseline. Real values from the
+ * selected provider always win; fields it does not report stay on the baseline so the
+ * UI keeps rendering complete data instead of fabricated zeroes.
+ */
+function mergeProviderWeather(
+  primary: ProviderWeather,
+  base: WeatherData | null,
+  lat: number,
+  lon: number,
+  timezone: string,
+  cityName?: string,
+  countryCode?: string
+): WeatherData {
+  const cachedAqi = base?.airQuality ?? getAQIFromCacheOrLive(cityCacheKey(cityName, lat, lon));
+
+  const current: WeatherData['current'] = {
+    ...EMPTY_CURRENT,
+    ...(base?.current ?? {}),
+    ...definedValues(primary.current),
+  } as WeatherData['current'];
+
+  const hourly: WeatherData['hourly'] = {
+    ...EMPTY_HOURLY,
+    ...(base?.hourly ?? {}),
+    ...definedArrays(primary.hourly),
+  } as WeatherData['hourly'];
+
+  const daily: WeatherData['daily'] = {
+    ...EMPTY_DAILY,
+    ...(base?.daily ?? {}),
+    ...definedArrays(primary.daily),
+  } as WeatherData['daily'];
+
+  return {
+    current,
+    hourly,
+    daily,
+    airQuality: cachedAqi ?? UNAVAILABLE_AIR_QUALITY,
+    fetchedAt: Date.now(),
+    timezone: base?.timezone || timezone || 'UTC',
+  };
+}
+
+export async function fetchWeather(
+  lat: number,
+  lon: number,
+  timezone: string,
+  cityName?: string,
+  countryCode?: string,
+  providerId: ProviderId = getActiveProviderId()
+): Promise<WeatherData> {
+  const provider = getProvider(providerId);
+
+  if (provider.family === 'open-meteo') {
+    const data = await fetchOpenMeteoWeather(lat, lon, timezone, cityName, countryCode, provider.models);
+    return data ?? readCacheOrPlaceholder(lat, lon, timezone, cityName, countryCode);
+  }
+
+  const [base, primary] = await Promise.all([
+    fetchOpenMeteoWeather(lat, lon, timezone, cityName, countryCode).catch(() => null),
+    (provider.family === 'metno'
+      ? fetchMetNoWeather(lat, lon, timezone || 'UTC')
+      : fetchWttrWeather(lat, lon, timezone || 'UTC')
+    ).catch(() => null),
+  ]);
+
+  if (!primary) {
+    return base ?? readCacheOrPlaceholder(lat, lon, timezone, cityName, countryCode);
+  }
+
+  return mergeProviderWeather(primary, base, lat, lon, timezone, cityName, countryCode);
+}
+
 
 // --- Geocoding (Direct Free APIs without Keys) ---
 

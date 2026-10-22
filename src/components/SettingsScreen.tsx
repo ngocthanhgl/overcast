@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { mapWMOLabel, getCurrentWeatherState, getWeatherThemeColor } from '../services/weatherService';
+import WeatherSourcePage from './WeatherSourcePage';
+import { DEFAULT_PROVIDER_ID, getProvider } from '../services/providers/registry';
+import type { ProviderId } from '../services/providers/types';
 import { convertTemp, formatTemp, formatWind, formatVisibility, formatPrecipitation } from '../lib/units';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { Icons, WeatherIcon } from './WeatherIcons';
@@ -748,6 +751,7 @@ const SettingsScreen = ({
     };
   }, []);
   const [showDataSources, setShowDataSources] = useState(false);
+  const [showWeatherSource, setShowWeatherSource] = useState(false);
   const [showTilesCustomisation, setShowTilesCustomisation] = useState(false);
   const [customTileOrder, setCustomTileOrder] = useState<string[]>([]);
   const tileReorderDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -828,7 +832,7 @@ const SettingsScreen = ({
 
   // Track scroll position of the main panel and restore it when returning from subviews
   useEffect(() => {
-    const isSubActive = activeSubView !== 'none' || showDataSources || showTilesCustomisation || showAlertPage || showUnitPage || showGeneralPage || showLanguagePage;
+    const isSubActive = activeSubView !== 'none' || showDataSources || showWeatherSource || showTilesCustomisation || showAlertPage || showUnitPage || showGeneralPage || showLanguagePage;
     
     if (isSubActive) {
       // User is exiting the main Settings panel into a subview: save position
@@ -854,7 +858,7 @@ const SettingsScreen = ({
         };
       }
     }
-  }, [activeSubView, showDataSources, showTilesCustomisation, showAlertPage, showUnitPage, showGeneralPage, showLanguagePage]);
+  }, [activeSubView, showDataSources, showWeatherSource, showTilesCustomisation, showAlertPage, showUnitPage, showGeneralPage, showLanguagePage]);
 
   useEffect(() => {
     const runInit = async () => {
@@ -981,7 +985,7 @@ const SettingsScreen = ({
   );
 
   useEffect(() => {
-    if (showDataSources || showTilesCustomisation || activeSubView !== 'none' || showAlertPage || showUnitPage || showGeneralPage || showLanguagePage) {
+    if (showDataSources || showWeatherSource || showTilesCustomisation || activeSubView !== 'none' || showAlertPage || showUnitPage || showGeneralPage || showLanguagePage) {
       const resetScroll = () => {
         if (scrollRef.current) { scrollRef.current.scrollTop = 0; scrollRef.current.scrollLeft = 0; }
         if (sourcesScrollRef.current) { sourcesScrollRef.current.scrollTop = 0; sourcesScrollRef.current.scrollLeft = 0; }
@@ -994,7 +998,7 @@ const SettingsScreen = ({
         window.scrollTo(0, 0);
         
         // Direct DOM access to ensure absolute top-alignment
-        const pages = ["sources-page", "tiles-page", "subview-page", "alerts-page", "units-page", "general-page", "language-page"];
+        const pages = ["sources-page", "weather-source-page", "tiles-page", "subview-page", "alerts-page", "units-page", "general-page", "language-page"];
         pages.forEach(p => {
           const el = document.getElementById(p);
           if (el) {
@@ -1017,13 +1021,13 @@ const SettingsScreen = ({
         clearTimeout(t3);
       };
     }
-  }, [showDataSources, showTilesCustomisation, activeSubView, showAlertPage, showUnitPage, showGeneralPage, showLanguagePage]);
+  }, [showDataSources, showWeatherSource, showTilesCustomisation, activeSubView, showAlertPage, showUnitPage, showGeneralPage, showLanguagePage]);
 
   // pushPanel and handleBack passed down from parent to maintain unified browser state
 
   useEffect(() => {
     const handleSwipeLeft = () => {
-      if (showDataSources || showTilesCustomisation || activeSubView !== 'none' || showAlertPage || showUnitPage || showGeneralPage || showLanguagePage) return;
+      if (showDataSources || showWeatherSource || showTilesCustomisation || activeSubView !== 'none' || showAlertPage || showUnitPage || showGeneralPage || showLanguagePage) return;
       // Increase thresholds
       Haptic.medium(localSettings.hapticEnabled);
       const newRain = Math.min(100, localSettings.rainThreshold + 10);
@@ -1040,7 +1044,7 @@ const SettingsScreen = ({
     };
 
     const handleSwipeRight = () => {
-      if (showDataSources || showTilesCustomisation || activeSubView !== 'none' || showAlertPage || showUnitPage || showGeneralPage || showLanguagePage) return;
+      if (showDataSources || showWeatherSource || showTilesCustomisation || activeSubView !== 'none' || showAlertPage || showUnitPage || showGeneralPage || showLanguagePage) return;
       // Decrease thresholds
       Haptic.medium(localSettings.hapticEnabled);
       const newRain = Math.max(0, localSettings.rainThreshold - 10);
@@ -1062,7 +1066,7 @@ const SettingsScreen = ({
       window.removeEventListener('swipe-left', handleSwipeLeft);
       window.removeEventListener('swipe-right', handleSwipeRight);
     };
-  }, [localSettings, showDataSources, showTilesCustomisation, activeSubView, showAlertPage, showUnitPage, showGeneralPage, showLanguagePage, onUpdate]);
+  }, [localSettings, showDataSources, showWeatherSource, showTilesCustomisation, activeSubView, showAlertPage, showUnitPage, showGeneralPage, showLanguagePage, onUpdate]);
 
   const updateSetting = <T extends keyof Settings>(key: T, value: Settings[T]) => {
     Haptic.light(localSettings.hapticEnabled);
@@ -1145,15 +1149,15 @@ const SettingsScreen = ({
           ref={mainScrollRef}
           initial={{ opacity: 1, x: 0 }}
           style={{
-            pointerEvents: (activeSubView !== 'none' || showDataSources || showTilesCustomisation || showAlertPage || showUnitPage || showGeneralPage) ? 'none' : 'auto'
+            pointerEvents: (activeSubView !== 'none' || showDataSources || showWeatherSource || showTilesCustomisation || showAlertPage || showUnitPage || showGeneralPage) ? 'none' : 'auto'
           }}
           className={cn(
             "absolute inset-0 z-[1005] bg-transparent overflow-y-auto overscroll-contain gpu settings-panel touch-pan-y",
-            (activeSubView !== 'none' || showDataSources || showTilesCustomisation || showAlertPage || showUnitPage || showGeneralPage) ? "pointer-events-none" : "pointer-events-auto"
+            (activeSubView !== 'none' || showDataSources || showWeatherSource || showTilesCustomisation || showAlertPage || showUnitPage || showGeneralPage) ? "pointer-events-none" : "pointer-events-auto"
           )}
           animate={{ 
-            opacity: (activeSubView !== 'none' || showDataSources || showTilesCustomisation || showAlertPage || showUnitPage || showGeneralPage) ? 0 : 1,
-            x: (activeSubView !== 'none' || showDataSources || showTilesCustomisation || showAlertPage || showUnitPage || showGeneralPage) ? -15 : 0,
+            opacity: (activeSubView !== 'none' || showDataSources || showWeatherSource || showTilesCustomisation || showAlertPage || showUnitPage || showGeneralPage) ? 0 : 1,
+            x: (activeSubView !== 'none' || showDataSources || showWeatherSource || showTilesCustomisation || showAlertPage || showUnitPage || showGeneralPage) ? -15 : 0,
           }}
           exit={{ opacity: 1 }}
           transition={{ 
@@ -1228,8 +1232,30 @@ const SettingsScreen = ({
               </button>
             </div>
 
-            {/* Group 2: Units & Alerts & thresholds subpages */}
+            {/* Group 2: Weather source, Units & Alerts & thresholds subpages */}
             <div className="w-full bg-white/[0.04] border border-white/[0.08] rounded-[24px] divide-y divide-white/[0.06] mb-5 overflow-hidden">
+              <button 
+                onClick={() => {
+                  Haptic.medium(localSettings.hapticEnabled);
+                  setShowWeatherSource(true);
+                  pushPanel(() => setShowWeatherSource(false), 'weather_source');
+                }}
+                className="w-full p-5 flex items-center justify-between text-left active:bg-white/[0.03] transition-colors"
+              >
+                <div className="flex items-center gap-3.5">
+                  <Cloud className="w-5 h-5 text-white/50" strokeWidth={1.8} />
+                  <div className="flex flex-col">
+                    <p className="text-[15px] font-medium text-white tracking-tight font-sans">
+                      <Translate text="Weather source" lang={localSettings.language} />
+                    </p>
+                    <p className="text-[12.5px] text-white/40 mt-0.5 leading-tight font-sans">
+                      {getProvider(localSettings.weatherProvider ?? DEFAULT_PROVIDER_ID).name}
+                    </p>
+                  </div>
+                </div>
+                <Icons.ChevronRight className="w-4 h-4 text-white/15" />
+              </button>
+
               <button 
                 onClick={() => {
                   Haptic.medium(localSettings.hapticEnabled);
@@ -1412,6 +1438,36 @@ const SettingsScreen = ({
                 </div>
               </div>
             </motion.div>
+        )}
+
+        {showWeatherSource && (
+          <motion.div 
+            key="settings-weather-source-panel"
+            id="weather-source-page"
+            data-no-swipe
+            initial={{ x: "100%", opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "100%", opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
+            style={{ willChange: "transform" }}
+            className="fixed inset-0 z-[1012] bg-app-bg overflow-y-auto overscroll-contain weather-source-page touch-pan-y transform-gpu pointer-events-auto"
+          >
+            <WeatherSourcePage
+              settings={localSettings}
+              location={activeLocation}
+              onSelect={(providerId: ProviderId) => {
+                const updated = { ...localSettings, weatherProvider: providerId };
+                setLocalSettings(updated);
+                onUpdate(updated);
+                setShowWeatherSource(false);
+                handleBack();
+              }}
+              onClose={() => {
+                setShowWeatherSource(false);
+                handleBack();
+              }}
+            />
+          </motion.div>
         )}
 
         {showTilesCustomisation && (
