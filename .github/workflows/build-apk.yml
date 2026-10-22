@@ -63,6 +63,16 @@ jobs:
       - name: Generate app icon and splash screen
         run: npx capacitor-assets generate --android --iconBackgroundColor '#dbe4eb'
 
+      - name: Add Android permissions
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q 'ACCESS_FINE_LOCATION' "$MANIFEST"; then
+            sed -i 's#    <application#    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <application#' "$MANIFEST"
+          fi
+          grep -q 'ACCESS_FINE_LOCATION' "$MANIFEST" || { echo "::error::Failed to add location permissions"; exit 1; }
+          grep -q 'ACCESS_COARSE_LOCATION' "$MANIFEST" || { echo "::error::Failed to add coarse location permission"; exit 1; }
+          grep -q 'POST_NOTIFICATIONS' "$MANIFEST" || { echo "::error::Failed to add notification permission"; exit 1; }
+
       - name: Stamp version
         run: |
           sed -i "s/versionCode 1$/versionCode $((100 + ${GITHUB_RUN_NUMBER}))/" android/app/build.gradle
