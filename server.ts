@@ -879,6 +879,44 @@ Return structure:
   res.json({ error: true, message: "Weather Proxy Endpoint Error: All resolution pathways failed." });
 });
 
+// --- API MET NORWAY PROXY (identifying User-Agent, required by their terms) ---
+app.get('/api/metno-proxy', async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lon = Number(req.query.lon);
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    res.statusCode = 400;
+    res.json({ error: true, message: 'lat and lon are required' });
+    return;
+  }
+
+  const targetUrl = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`;
+
+  try {
+    const upstream = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'OvercastWeatherApp/1.0 (https://github.com/ngocthanhgl/overcast-app)',
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!upstream.ok) {
+      res.statusCode = upstream.status || 502;
+      res.send(await upstream.text());
+      return;
+    }
+
+    res.status(200).json(await upstream.json());
+  } catch (err: any) {
+    res.statusCode = 502;
+    res.json({ error: true, message: err?.message || 'MET Norway proxy error' });
+  }
+});
+
 // --- API GEOCODING PROXY WITH RESILIENT AI LOCATION SEARCH ---
 app.get('/api/geocoding-proxy', async (req, res) => {
   const url = req.url || '';

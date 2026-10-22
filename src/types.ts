@@ -1,3 +1,5 @@
+import type { ProviderId } from './services/providers/types';
+
 export interface Location {
   id: number;
   name: string;
@@ -107,6 +109,7 @@ export interface Settings {
   oneSignalPlayerId?: string;
   backgroundGlow?: 'on' | 'off' | 'static';
   language?: string; // e.g. 'en', 'es', 'de', etc.
+  weatherProvider?: ProviderId;
   layoutWeatherDetail?: 'compact' | 'detailed';
   layoutHourlyForecast?: 'compact' | 'detailed';
   layoutDailyForecast?: 'compact' | 'detailed';

@@ -3,6 +3,9 @@ import { formatTemp } from './lib/units';
 import { Location, WeatherData, WeatherState, Settings } from './types';
 import { fetchWeather, fetchWeatherBulk, getMoonPhaseInfo, getCurrentHourIndex, reverseGeocode, getCurrentWeatherState, getAQIDataWithFallback, getDataAgeHours, getAQIFromCacheOrLive, fetchIPLocation, getPrefetchUrls, getWeatherThemeColor } from './services/weatherService';
 import { getCachedWeatherData, saveWeatherData, STORAGE_KEYS, getCityKey, CACHE_EXPIRY } from './lib/storage';
+import { setActiveProviderId } from './services/providers/active';
+import { DEFAULT_PROVIDER_ID, isProviderId } from './services/providers/registry';
+import type { ProviderId } from './services/providers/types';
 import { initGestures } from './lib/gestures';
 import WeatherSkeleton from './components/WeatherSkeleton';
 import SearchBar from './components/SearchBar';
@@ -417,6 +420,12 @@ export default function App() {
 
     const initialIndex = cachedIndex !== null ? Math.max(0, Math.min(cachedIndex, initialLocations.length - 1)) : 0;
     const initialWeatherData: Record<number, WeatherData> = {};
+
+    // The cache is provider-stamped, so the active provider must be known before hydrating it.
+    const initialProvider: ProviderId = isProviderId(cachedSettings?.weatherProvider)
+      ? cachedSettings!.weatherProvider
+      : DEFAULT_PROVIDER_ID;
+    setActiveProviderId(initialProvider);
     
     // Attempt absolute zero-lag hydration of weather data from cache
     if (initialLocations.length > 0) {
@@ -2106,6 +2115,27 @@ export default function App() {
       }
     }
   };
+
+  const activeProviderRef = useRef<ProviderId>(state.settings.weatherProvider ?? DEFAULT_PROVIDER_ID);
+
+  useEffect(() => {
+    const nextProvider: ProviderId = state.settings.weatherProvider ?? DEFAULT_PROVIDER_ID;
+    if (nextProvider === activeProviderRef.current) return;
+    activeProviderRef.current = nextProvider;
+    setActiveProviderId(nextProvider);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem('last_refresh');
+      } catch {
+        /* ignore */
+      }
+    }
+    // Cached values belong to the previous provider; drop them and refetch everything.
+    setState(prev => ({ ...prev, weatherData: {}, loading: prev.locations.length > 0, error: null }));
+    if (stateRef.current.locations.length > 0) {
+      loadWeatherBatch(stateRef.current.locations, 0, true);
+    }
+  }, [state.settings.weatherProvider]);
 
   useEffect(() => {
     localStorage.setItem('app_settings', JSON.stringify(state.settings));
