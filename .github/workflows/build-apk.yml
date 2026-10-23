@@ -128,7 +128,7 @@ jobs:
           tag_name: v1.0.0
           name: Overcast v1.0.0
           prerelease: false
-          allowUpdates: true
+          overwrite_files: true
           body: |
             Automated Android build from ${{ github.sha }}.
 
