@@ -24,6 +24,8 @@ jobs:
         run: npm ci
 
       - name: Build web app
+        env:
+          VITE_AQI_PROXY_BASE: ${{ vars.VITE_AQI_PROXY_BASE }}
         run: npm run build
 
       - uses: actions/setup-java@v4
@@ -75,8 +77,8 @@ jobs:
 
       - name: Stamp version
         run: |
-          sed -i "s/versionCode 1$/versionCode $((100 + ${GITHUB_RUN_NUMBER}))/" android/app/build.gradle
-          sed -i "s/versionName \"1.0\"/versionName \"1.0.${GITHUB_RUN_NUMBER}\"/" android/app/build.gradle
+          sed -i "s/versionCode .*/versionCode 1/" android/app/build.gradle
+          sed -i "s/versionName \".*\"/versionName \"1.0.0\"/" android/app/build.gradle
 
       - name: Build signed release APK
         env:
@@ -110,22 +112,23 @@ jobs:
             "$RUNNER_TEMP/aligned.apk"
           "$BUILD_TOOLS/apksigner" verify "$RUNNER_TEMP/overcast.apk"
 
-          APK_NAME="overcast-release-${{ github.run_number }}.apk"
+          APK_NAME="overcast-1.0.0.apk"
           cp "$RUNNER_TEMP/overcast.apk" "$GITHUB_WORKSPACE/$APK_NAME"
           echo "APK_NAME=$APK_NAME" >> "$GITHUB_ENV"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: overcast-apk-${{ github.run_number }}
+          name: overcast-apk
           path: ${{ env.APK_NAME }}
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Overcast v1.0.${{ github.run_number }}
+          tag_name: v1.0.0
+          name: Overcast v1.0.0
           prerelease: false
+          allowUpdates: true
           body: |
             Automated Android build from ${{ github.sha }}.
 

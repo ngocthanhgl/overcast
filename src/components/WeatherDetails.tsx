@@ -7,6 +7,8 @@ import { formatTemp, formatWind, formatVisibility, formatPrecipitation, convertV
 import { format, parseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCurrentHourIndex, parseTimeToAbsoluteDate } from '../services/weatherService';
+import { AQI_SCALE_LABEL, AQI_SCALE_MAX, gradientStops, percentInScale, ticksFor } from '../services/aqi/scale';
+import type { AqiIndex } from '../services/aqi/scale';
 import { useTranslatedText, Translate } from '../lib/translations';
 
 const PARTICLE_DOTS = [
@@ -511,16 +513,10 @@ export default function WeatherDetails({ weather, settings, location, focusKey }
     return true;
   });
 
-  const getAqiPercent = (val: number) => {
-    if (val <= 0) return 0;
-    if (val <= 50) return (val / 50) * 16.67;
-    if (val <= 100) return 16.67 + ((val - 50) / 50) * 16.67;
-    if (val <= 150) return 33.33 + ((val - 100) / 50) * 16.67;
-    if (val <= 200) return 50.0 + ((val - 150) / 50) * 16.67;
-    if (val <= 300) return 66.67 + ((val - 200) / 100) * 16.67;
-    if (val <= 500) return 83.33 + ((val - 300) / 200) * 16.67;
-    return 100;
-  };
+  const aqiIndex: AqiIndex = aqi?.index ?? 'us_epa';
+  const getAqiPercent = (val: number) => percentInScale(val, aqiIndex);
+  const aqiGaugeStops = gradientStops(aqiIndex);
+  const aqiTicks = ticksFor(aqiIndex);
 
   const defaultWidgetsOrder = [
     'rainGraph',
@@ -761,7 +757,9 @@ export default function WeatherDetails({ weather, settings, location, focusKey }
               {/* Exact Premium Horizontal Slider Graph exactly matching prompt */}
               <div className="flex flex-col gap-1.5 mt-6">
                 <div className="w-full h-[6px] rounded-full relative overflow-visible" style={{
-                  background: 'linear-gradient(to right, #32d74b 0%, #32d74b 16.67%, #FED60A 16.67%, #FED60A 33.33%, #ff9f0a 33.33%, #ff9f0a 50%, #ff453a 50%, #ff453a 66.67%, #bf5af2 66.67%, #bf5af2 83.33%, #8e3020 83.33%, #8e3020 100%)'
+                  background: `linear-gradient(to right, ${aqiGaugeStops
+                    .map((stop) => `${stop.color} ${stop.from}%, ${stop.color} ${stop.to}%`)
+                    .join(', ')})`
                 }}>
                   {/* Indicator Thumb / Knob */}
                   {!aqi.isUnavailable && (
@@ -780,27 +778,19 @@ export default function WeatherDetails({ weather, settings, location, focusKey }
                   )}
                 </div>
 
-                {/* Sub-ticks labels (0 to 500) under the track slider */}
+                {/* Sub-ticks labels derived from the active AQI scale */}
                 <div className="relative w-full h-[14px] select-none">
-                  {[
-                    { val: "0", pct: 0 },
-                    { val: "50", pct: 16.67 },
-                    { val: "100", pct: 33.33 },
-                    { val: "150", pct: 50 },
-                    { val: "200", pct: 66.67 },
-                    { val: "300", pct: 83.33 },
-                    { val: "500", pct: 100 }
-                  ].map((tick, i, arr) => {
+                  {aqiTicks.map((tick, i, arr) => {
                     let translateClass = "-translate-x-1/2";
                     if (i === 0) translateClass = "translate-x-0";
                     if (i === arr.length - 1) translateClass = "-translate-x-full";
                     return (
                       <span 
-                        key={tick.val} 
+                        key={`${tick.label}-${i}`} 
                         className={`absolute leading-none text-app-text/75 font-semibold text-[11px] ${translateClass}`}
-                        style={{ left: `${tick.pct}%` }}
+                        style={{ left: `${tick.percent}%` }}
                       >
-                        {tick.val}
+                        {tick.label}
                       </span>
                     );
                   })}
@@ -817,9 +807,9 @@ export default function WeatherDetails({ weather, settings, location, focusKey }
 
               {/* Bottom footer metrics: Left x/500, Right AQI (US) */}
               <div className="flex items-center justify-between text-[13px] text-app-text/65 font-light">
-                <span>{aqi.isUnavailable ? "--" : `${aqi.usAqi} / 500`}</span>
+                <span>{aqi.isUnavailable ? "--" : `${aqi.usAqi} / ${AQI_SCALE_MAX[aqiIndex]}`}</span>
                 <span>
-                  <Translate text="AQI (US)" lang={settings.language || 'en'} />
+                  {AQI_SCALE_LABEL[aqiIndex]}
                 </span>
               </div>
             </div>

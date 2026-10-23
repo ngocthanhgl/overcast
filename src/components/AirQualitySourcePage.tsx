@@ -5,6 +5,7 @@ import { Icons } from './WeatherIcons';
 import { Haptic } from '../lib/haptics';
 import { useTranslatedText } from '../lib/translations';
 import { AQI_SOURCES, DEFAULT_AQI_SOURCE_ID, getAqiSource } from '../services/aqi/registry';
+import { AQI_SCALE_LABEL } from '../services/aqi/scale';
 import type { AqiPreview, AqiSourceId, AqiSourceFamily } from '../services/aqi/types';
 import { fetchAqiPreviews, getCachedAqiPreviews, emptyAqiPreviewMap, type AqiPreviewMap } from '../services/aqi/preview';
 
@@ -38,7 +39,7 @@ function AqiRow({
   const hasValue = !!preview && !preview.isUnavailable && preview.aqi != null;
 
   const condition = hasValue
-    ? (preview?.category ?? '—')
+    ? `${preview?.category ?? '—'} · ${AQI_SCALE_LABEL[preview!.index]}`
     : loading && !preview
     ? '…'
     : preview?.reason ?? 'Unavailable';
@@ -97,7 +98,9 @@ function AqiRow({
                 {hasValue ? preview!.aqi : '—'}
               </p>
               <p className="text-[11.5px] text-app-text-dim tabular-nums mt-1.5 leading-none">
-                {hasValue && preview?.pm2_5 != null ? `PM2.5 ${Math.round(preview.pm2_5)}` : ''}
+                {hasValue
+                  ? `${preview?.pm2_5 != null ? `PM2.5 ${Math.round(preview.pm2_5)} · ` : ''}${preview!.aqi} / ${preview!.scaleMax}`
+                  : ''}
               </p>
             </>
           )}
@@ -154,6 +157,7 @@ export default function AirQualitySourcePage({ settings, location, onSelect, onC
   }, [lat, lon]);
 
   const pageTitle = useTranslatedText('Air quality source', lang);
+  const previewForLabel = useTranslatedText('Preview for', lang);
   const footerNote = useTranslatedText(
     'Model sources interpolate a grid; station sources report a real monitor, possibly in a nearby city. Comparison values are a live preview.',
     lang
@@ -193,6 +197,15 @@ export default function AirQualitySourcePage({ settings, location, onSelect, onC
           <Icons.ChevronLeft className="w-5.5 h-5.5 text-app-text" strokeWidth={2.5} />
         </button>
       </header>
+
+      {location && (
+        <div className="flex items-center gap-2 px-1 mb-5">
+          <Icons.MapPin className="w-3.5 h-3.5 text-app-text-dim shrink-0" strokeWidth={2} />
+          <p className="text-[13px] text-app-text-dim leading-snug truncate">
+            {previewForLabel} · {location.name}{location.country ? `, ${location.country}` : ''}
+          </p>
+        </div>
+      )}
 
       {!location && (
         <div className="w-full bg-app-surface border border-app-border rounded-[24px] px-5 py-6 mb-8">

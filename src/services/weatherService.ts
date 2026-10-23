@@ -8,7 +8,10 @@ import { fetchWttrWeather } from './providers/wttr';
 import { getActiveAqiSourceId } from './aqi/active';
 import { getAqiSource } from './aqi/registry';
 import { fetchAqiPreviewForSource } from './aqi/preview';
+import { AQI_SCALE_LABEL, AQI_SCALE_MAX, categoryFor } from './aqi/scale';
+import type { AqiIndex } from './aqi/scale';
 import type { AqiPreview, AqiSourceId } from './aqi/types';
+import { fetchAqicnFeed } from './aqi/aqicn';
 
 
 // --- Safe Fetch Mechanism with Timeout & Retry ---
@@ -748,6 +751,9 @@ async function fetchOpenMeteoWeather(
     },
     airQuality: {
       usAqi: aqiData?.usAqi ?? (cachedAqi?.usAqi ?? 0),
+      index: aqiData?.index ?? cachedAqi?.index,
+      scaleMax: aqiData?.scaleMax ?? cachedAqi?.scaleMax,
+      scaleLabel: aqiData?.scaleLabel ?? cachedAqi?.scaleLabel,
       description: aqiData?.description ?? (cachedAqi?.description ?? "Retrieving..."),
       color: aqiData?.color ?? (cachedAqi?.color ?? "#94a3b8"),
       recommendation: aqiData?.recommendation ?? (cachedAqi?.recommendation ?? "Reading station..."),
@@ -1311,22 +1317,10 @@ export const getAQIStandard = (cityName: string, countryCode: string): 'IN' | 'U
   return "US";
 };
 
-export const getAQICategory = (aqi: number, standard = "US") => {
-  if (standard === "IN") {
-    if (aqi <= 50)  return { label:"Good",        color:"#00b050", recommendation: "Ideal for outdoor activities." };
-    if (aqi <= 100) return { label:"Satisfactory", color:"#92d050", recommendation: "Acceptable air quality for general public." };
-    if (aqi <= 200) return { label:"Moderate",     color:"#FED60A", recommendation: "May cause breathing discomfort to people with sensitive lungs." };
-    if (aqi <= 300) return { label:"Poor",         color:"#ff7e00", recommendation: "May cause breathing discomfort on prolonged exposure." };
-    if (aqi <= 400) return { label:"Very Poor",    color:"#ff0000", recommendation: "May cause respiratory illness on prolonged exposure." };
-    return              { label:"Severe",          color:"#7e0023", recommendation: "May cause respiratory effects even on healthy people." };
-  } else {
-    if (aqi <= 50)  return { label:"Good",                      color:"#00e400", recommendation: "Ideal for outdoor activities." };
-    if (aqi <= 100) return { label:"Moderate",                  color:"#FED60A", recommendation: "Acceptable quality; sensitive groups should limit exertion." };
-    if (aqi <= 150) return { label:"Unhealthy for Sensitive Groups",   color:"#ff7e00", recommendation: "Sensitive groups should reduce prolonged outdoor activity." };
-    if (aqi <= 200) return { label:"Unhealthy",                 color:"#ff0000", recommendation: "Everyone should reduce prolonged outdoor exertion." };
-    if (aqi <= 300) return { label:"Very Unhealthy",            color:"#8f3f97", recommendation: "Avoid outdoor activity. Keep windows closed." };
-    return              { label:"Hazardous",                    color:"#7e0023", recommendation: "Stay indoors. Health emergency conditions." };
-  }
+export const getAQICategory = (aqi: number, standard: 'US' | 'IN' | 'EU' | string = "US") => {
+  const index: AqiIndex = standard === 'IN' ? 'cpcb' : standard === 'EU' ? 'eea' : 'us_epa';
+  const band = categoryFor(aqi, index);
+  return { label: band.label, color: band.color, recommendation: band.recommendation };
 };
 
 export function calcIndianSubIndexPM25(val: number): number {
@@ -1371,74 +1365,16 @@ export const getDataAgeHours = (timeString: string | undefined): number => {
   } catch { return 999; }
 };
 
-export const fetchAQI = async (cityName: string, lat: number, lon: number): Promise<any> => {
-  const token = import.meta.env.VITE_WAQI_TOKEN || "demo";
-  const results: { data: any; age: number }[] = [];
-
-  // Try 1 — City name slug
-  const slug = cityName.toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
-
-  const r1 = await safeFetch(
-    `https://api.waqi.info/feed/${slug}/?token=${token}`
-  );
-  if (r1?.status === "ok" && r1.data?.aqi > 0) {
-    results.push({
-      data: r1.data,
-      age: getDataAgeHours(r1.data.time?.s || r1.data.time?.iso)
-    });
-  }
-
-  // Try 2 — Geo coordinates
-  const r2 = await safeFetch(
-    `https://api.waqi.info/feed/geo:${lat};${lon}/?token=${token}`
-  );
-  if (r2?.status === "ok" && r2.data?.aqi > 0) {
-    results.push({
-      data: r2.data,
-      age: getDataAgeHours(r2.data.time?.s || r2.data.time?.iso)
-    });
-  }
-
-  // Try 3 — Search by keyword
-  const r3 = await safeFetch(
-    `https://api.waqi.info/search/?token=${token}&keyword=${encodeURIComponent(cityName)}`
-  );
-  if (r3?.status === "ok" && r3.data?.length > 0) {
-    const top3 = r3.data.slice(0, 3);
-    for (const station of top3) {
-      if (station.uid) {
-        const r = await safeFetch(
-          `https://api.waqi.info/feed/@${station.uid}/?token=${token}`
-        );
-        if (r?.status === "ok" && r.data?.aqi > 0) {
-          results.push({
-            data: r.data,
-            age: getDataAgeHours(r.data.time?.s || r.data.time?.iso)
-          });
-        }
-      }
-    }
-  }
-
-  if (results.length === 0) {
-    console.warn("No AQI data found for:", cityName);
-    return null;
-  }
-
-  // Pick the FRESHEST result
-  results.sort((a, b) => a.age - b.age);
-  const freshest = results[0];
-
-  console.log(`AQI for ${cityName}:`, {
-    aqi:      freshest.data.aqi,
-    station:  freshest.data.city?.name,
-    ageHours: freshest.age.toFixed(1),
-    updatedAt: freshest.data.time?.s
-  });
-
-  return freshest.data;
+/**
+ * WAQI/AQICN reading for a coordinate, via our own proxy (the token stays server side).
+ * Returns the raw WAQI payload, or null when the proxy is unconfigured/unavailable.
+ */
+export const fetchAQI = async (_cityName: string, lat: number, lon: number): Promise<any> => {
+  const raw = await fetchAqicnFeed(lat, lon);
+  if (raw?.status === 'ok' && Number(raw?.data?.aqi) > 0) return raw;
+  if (raw?.status === 'ok') return raw;
+  console.warn('No AQI data found for:', _cityName);
+  return null;
 };
 
 export async function mapWAQIResultToAirQuality(waqiData: any, cityName: string, countryCode?: string) {
@@ -1490,6 +1426,9 @@ function mapAqiPreviewToAirQuality(preview: AqiPreview): NonNullable<WeatherData
   const category = getAQICategory(aqi, 'US');
   return {
     usAqi: aqi,
+    index: preview.index,
+    scaleMax: preview.scaleMax,
+    scaleLabel: AQI_SCALE_LABEL[preview.index],
     description: preview.category ?? category.label,
     color: preview.color ?? category.color,
     recommendation: category.recommendation,
@@ -1505,19 +1444,23 @@ function mapAqiPreviewToAirQuality(preview: AqiPreview): NonNullable<WeatherData
   };
 }
 
-/** Open-Meteo CAMS reading, optionally pinned to a single domain. */
+/** Open-Meteo CAMS reading, optionally pinned to a single domain and index. */
 async function openMeteoAqiResult(
   lat: number,
   lon: number,
   cityName: string,
   countryCode: string | undefined,
-  domains: string | undefined
+  domains: string | undefined,
+  index: AqiIndex = 'us_epa'
 ) {
-  console.log(`Using OpenMeteo AQI for ${cityName}${domains ? ` (${domains})` : ''}`);
-  const openMeteoRaw = await fetchOpenMeteoAQI(lat, lon, cityName, countryCode, domains);
+  console.log(`Using OpenMeteo AQI for ${cityName}${domains ? ` (${domains})` : ''} [${index}]`);
+  const openMeteoRaw = await fetchOpenMeteoAQI(lat, lon, cityName, countryCode, domains, index);
   if (!openMeteoRaw) return null;
   return {
     usAqi: openMeteoRaw.aqi,
+    index: openMeteoRaw.index,
+    scaleMax: openMeteoRaw.scaleMax,
+    scaleLabel: openMeteoRaw.scaleLabel,
     description: openMeteoRaw.categoryLabel,
     color: openMeteoRaw.categoryColor,
     recommendation: openMeteoRaw.categoryRecommendation,
@@ -1545,12 +1488,10 @@ export async function getAQIDataWithFallback(
   sourceId: AqiSourceId = getActiveAqiSourceId()
 ) {
   const source = getAqiSource(sourceId);
-  const token = import.meta.env.VITE_WAQI_TOKEN || "demo";
-  const isDemo = token === "demo" || !import.meta.env.VITE_WAQI_TOKEN;
 
   // City-list / ground-station sources first; fall through to CAMS when they have none.
   if (source.family !== 'open-meteo') {
-    if (source.family === 'waqi' && !isDemo) {
+    if (source.family === 'waqi') {
       try {
         const waqiRaw = await fetchAQI(cityName, lat, lon);
         if (waqiRaw) {
@@ -1590,16 +1531,24 @@ export async function getAQIDataWithFallback(
     lon,
     cityName,
     countryCode,
-    source.family === 'open-meteo' ? source.domains : undefined
+    source.family === 'open-meteo' ? source.domains : undefined,
+    source.family === 'open-meteo' ? source.index : 'us_epa'
   );
 }
 
-export async function fetchOpenMeteoAQI(lat: number, lon: number, cityName?: string, countryCode?: string, domains?: string) {
+export async function fetchOpenMeteoAQI(
+  lat: number,
+  lon: number,
+  cityName?: string,
+  countryCode?: string,
+  domains?: string,
+  index: AqiIndex = 'us_epa'
+) {
   try {
     const domainsParam = domains ? `&domains=${domains}` : '';
     const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}` +
-      `&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone,sulphur_dioxide,us_aqi` +
-      `&hourly=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone,sulphur_dioxide,us_aqi` +
+      `&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone,sulphur_dioxide,us_aqi,european_aqi` +
+      `&hourly=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone,sulphur_dioxide,us_aqi,european_aqi` +
       `&timezone=auto${domainsParam}`;
       
     const res = await safeFetch(url);
@@ -1652,26 +1601,29 @@ export async function fetchOpenMeteoAQI(lat: number, lon: number, cityName?: str
     const o3 = getValWithFallback(current.ozone, 'ozone');
     const so2 = getValWithFallback(current.sulphur_dioxide, 'sulphur_dioxide');
     const usAqiFromApi = getValWithFallback(current.us_aqi, 'us_aqi');
+    const eeaFromApi = getValWithFallback(current.european_aqi, 'european_aqi');
 
     const standard = getAQIStandard(cityName || '', countryCode || '');
     
     // Calibrate Open-Meteo raw atmospheric concentrations for Indian cities (global model heavily over-forecasts soil/desert dust levels compared to ground-level monitors)
     let pm2_5Calibrated = pm2_5;
     let pm10Calibrated = pm10;
-    if (standard === "IN") {
+    if (standard === "IN" && index === 'cpcb') {
       if (typeof pm2_5 === 'number' && pm2_5 !== null) pm2_5Calibrated = pm2_5 * 0.55;
       if (typeof pm10 === 'number' && pm10 !== null) pm10Calibrated = pm10 * 0.25;
     }
 
     let finalAqi = 0;
 
-    if (standard === "IN") {
+    if (index === 'eea') {
+      finalAqi = typeof eeaFromApi === 'number' ? eeaFromApi : 0;
+    } else if (index === 'cpcb') {
       finalAqi = calculateIndianAQI(pm2_5Calibrated ?? undefined, pm10Calibrated ?? undefined);
     } else {
       finalAqi = typeof usAqiFromApi === 'number' ? usAqiFromApi : 0;
     }
 
-    const category = getAQICategory(finalAqi, standard);
+    const category = getAQICategory(finalAqi, index === 'eea' ? 'EU' : index === 'cpcb' ? 'IN' : 'US');
 
     const historicalAqi: { time: string; aqi: number }[] = [];
     if (hourly.time && hourly.time.length > 0) {
@@ -1688,9 +1640,12 @@ export async function fetchOpenMeteoAQI(lat: number, lon: number, cityName?: str
         const hPm2_5 = hourly.pm2_5 ? hourly.pm2_5[i] : null;
         const hPm10 = hourly.pm10 ? hourly.pm10[i] : null;
         const hUsAqi = hourly.us_aqi ? hourly.us_aqi[i] : null;
+        const hEea = hourly.european_aqi ? hourly.european_aqi[i] : null;
 
         let hAqiVal = 0;
-        if (standard === "IN") {
+        if (index === 'eea') {
+          hAqiVal = typeof hEea === 'number' ? hEea : 0;
+        } else if (index === 'cpcb') {
           const calPm2_5 = typeof hPm2_5 === 'number' && hPm2_5 !== null ? hPm2_5 * 0.55 : undefined;
           const calPm10 = typeof hPm10 === 'number' && hPm10 !== null ? hPm10 * 0.25 : undefined;
           hAqiVal = calculateIndianAQI(calPm2_5, calPm10);
@@ -1707,11 +1662,14 @@ export async function fetchOpenMeteoAQI(lat: number, lon: number, cityName?: str
 
     return {
       aqi: finalAqi,
+      index,
+      scaleMax: AQI_SCALE_MAX[index],
+      scaleLabel: AQI_SCALE_LABEL[index],
       categoryLabel: category.label,
       categoryColor: category.color,
       categoryRecommendation: category.recommendation,
       standard,
-      standardLabel: standard === "IN" ? "AQI · India (NAQI)" : "AQI · US Standard",
+      standardLabel: AQI_SCALE_LABEL[index],
       time: current.time 
         ? parseTimeToAbsoluteDate(current.time, timezone).toISOString()
         : new Date().toISOString(),
@@ -2249,11 +2207,6 @@ export function getFallbackWeatherData(lat: number, lon: number, timezone: strin
  * so they can be dispatched to the Service Worker ahead of card transition swipes.
  */
 export function getPrefetchUrls(lat: number, lon: number, cityName: string): string[] {
-  const token = import.meta.env.VITE_WAQI_TOKEN || "demo";
-  const slug = cityName.toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
-
   const forecastUrl = 
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat}` +
@@ -2280,10 +2233,7 @@ export function getPrefetchUrls(lat: number, lon: number, cityName: string): str
     `&hourly=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone,sulphur_dioxide,us_aqi` +
     `&timezone=auto`;
 
-  const waqiGeoUrl = `https://api.waqi.info/feed/geo:${lat};${lon}/?token=${token}`;
-  const waqiSlugUrl = `https://api.waqi.info/feed/${slug}/?token=${token}`;
-
-  return [forecastUrl, openMeteoAqiUrl, waqiGeoUrl, waqiSlugUrl];
+  return [forecastUrl, openMeteoAqiUrl];
 }
 
 export function getWeatherThemeColor(code: number, isDay: boolean = true) {

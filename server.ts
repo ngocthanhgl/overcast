@@ -1158,6 +1158,33 @@ app.get('/api/reverse-geocode', async (req, res) => {
 });
 
 // --- API AIR QUALITY PROXY WITH RESILIENT AIR QUALITY RECONSTRUCTION ---
+app.get('/api/aqicn-proxy', async (req, res) => {
+  const token = process.env.AQICN_TOKEN;
+  const path = String(req.query.path || '');
+
+  if (!token) {
+    res.status(503).json({ status: 'error', message: 'AQICN not configured' });
+    return;
+  }
+  if (!/^\/feed\/geo:-?\d+(?:\.\d+)?;-?\d+(?:\.\d+)?\/$/.test(path)) {
+    res.status(400).json({ status: 'error', message: 'Unsupported path' });
+    return;
+  }
+
+  try {
+    const upstream = await fetch(`https://api.waqi.info${path}?token=${token}`, {
+      headers: { Accept: 'application/json' },
+    });
+    const body = await upstream.text();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.status(upstream.status === 200 ? 200 : 502).send(body);
+  } catch (err: any) {
+    console.warn('[AQICN Proxy] upstream failed:', err?.message || err);
+    res.status(502).json({ status: 'error', message: 'Upstream failure' });
+  }
+});
+
 app.get('/api/air-quality-proxy', async (req, res) => {
   const url = req.url || '';
   const suffix = String(req.query.path || '');

@@ -134,6 +134,8 @@ interface SettingsScreenProps {
   onClose: () => void;
   activeWeather?: WeatherData;
   activeLocation?: Location;
+  /** Full saved list; the first entry is the reference location for source previews. */
+  locations?: Location[];
   panelStackRef: React.MutableRefObject<(() => void)[]>;
   handleBack: () => void;
   pushPanel: (closeFn: () => void, name: string) => void;
@@ -656,11 +658,14 @@ const SettingsScreen = ({
   onClose, 
   activeWeather, 
   activeLocation, 
+  locations,
   panelStackRef,
   handleBack,
   pushPanel
 }: SettingsScreenProps) => {
   const [localSettings, setLocalSettings] = useState(globalSettings);
+  // Source previews describe the user's first saved city, falling back to the active one.
+  const previewLocation = locations?.[0] ?? activeLocation;
 
   const getColorThemeAccent = (colorTheme?: string) => {
     switch (colorTheme) {
@@ -1480,7 +1485,7 @@ const SettingsScreen = ({
           >
             <WeatherSourcePage
               settings={localSettings}
-              location={activeLocation}
+              location={previewLocation}
               onSelect={(providerId: ProviderId) => {
                 const updated = { ...localSettings, weatherProvider: providerId };
                 setLocalSettings(updated);
@@ -1510,7 +1515,7 @@ const SettingsScreen = ({
           >
             <AirQualitySourcePage
               settings={localSettings}
-              location={activeLocation}
+              location={previewLocation}
               onSelect={(aqiSourceId: AqiSourceId) => {
                 const updated = { ...localSettings, aqiProvider: aqiSourceId };
                 setLocalSettings(updated);

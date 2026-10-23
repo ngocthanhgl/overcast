@@ -172,6 +172,7 @@ export default function WeatherSourcePage({ settings, location, onSelect, onClos
   }, [lat, lon, timezone]);
 
   const pageTitle = useTranslatedText('Weather source', lang);
+  const previewForLabel = useTranslatedText('Preview for', lang);
   const footerNote = useTranslatedText(
     'Partial sources report fewer fields; missing values are filled from Open-Meteo. Comparison values are a live preview.',
     lang
@@ -211,6 +212,15 @@ export default function WeatherSourcePage({ settings, location, onSelect, onClos
           <Icons.ChevronLeft className="w-5.5 h-5.5 text-app-text" strokeWidth={2.5} />
         </button>
       </header>
+
+      {location && (
+        <div className="flex items-center gap-2 px-1 mb-5">
+          <Icons.MapPin className="w-3.5 h-3.5 text-app-text-dim shrink-0" strokeWidth={2} />
+          <p className="text-[13px] text-app-text-dim leading-snug truncate">
+            {previewForLabel} · {location.name}{location.country ? `, ${location.country}` : ''}
+          </p>
+        </div>
+      )}
 
       {!location && (
         <div className="w-full bg-app-surface border border-app-border rounded-[24px] px-5 py-6 mb-8">

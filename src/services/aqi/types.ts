@@ -1,4 +1,6 @@
-export type AqiSourceId = 'cams_global' | 'cams_europe' | 'atmos' | 'waqi';
+import type { AqiIndex } from './scale';
+
+export type AqiSourceId = 'cams_global_us' | 'cams_global_eu' | 'cams_europe_eu' | 'atmos_us' | 'waqi_us';
 
 export type AqiSourceFamily = 'open-meteo' | 'atmos' | 'waqi';
 
@@ -12,14 +14,19 @@ export interface AqiSource {
   descriptionKey: string;
   family: AqiSourceFamily;
   coverage: AqiCoverage;
+  /** Index scale this source reports on. */
+  index: AqiIndex;
   /** Open-Meteo `domains` parameter, when applicable. */
   domains?: string;
 }
 
 /** One source's current air quality reading, normalized for the comparison list. */
 export interface AqiPreview {
-  /** Index on the source's own scale. */
+  /** Index value on the source's own scale. */
   aqi: number | null;
+  index: AqiIndex;
+  /** Scale range shown next to the value, e.g. 500 for US AQI. */
+  scaleMax: number;
   category: string | null;
   color: string | null;
   pm2_5: number | null;

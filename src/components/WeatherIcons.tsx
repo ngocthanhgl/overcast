@@ -135,12 +135,21 @@ function subscribeAnimatedSvgs(cb: () => void) {
   animatedSvgListeners.add(cb);
   if (!animatedSvgRequested) {
     animatedSvgRequested = true;
-    import('./WeatherAnimatedSvgData')
-      .then((m) => {
-        animatedSvgData = m.ANIMATED_SVGS;
-        animatedSvgListeners.forEach((l) => l());
-      })
-      .catch(() => { animatedSvgRequested = false; });
+    // 310 KB of icon markup: never fetch it during the first paint.
+    const start = () => {
+      import('./WeatherAnimatedSvgData')
+        .then((m) => {
+          animatedSvgData = m.ANIMATED_SVGS;
+          animatedSvgListeners.forEach((l) => l());
+        })
+        .catch(() => { animatedSvgRequested = false; });
+    };
+    const w = window as unknown as { requestIdleCallback?: (fn: () => void, opts?: { timeout: number }) => number };
+    if (typeof w.requestIdleCallback === 'function') {
+      w.requestIdleCallback(start, { timeout: 2500 });
+    } else {
+      window.setTimeout(start, 900);
+    }
   }
   return () => { animatedSvgListeners.delete(cb); };
 }

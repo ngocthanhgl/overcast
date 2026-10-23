@@ -1,19 +1,8 @@
 import { AQI_SOURCES, getAqiSource } from './registry';
 import type { AqiPreview, AqiSource, AqiSourceId } from './types';
+import { AQI_SCALE_MAX, categoryFor, type AqiIndex } from './scale';
 import { fetchJsonWithTimeout } from '../providers/http';
-
-/**
- * US EPA bands, mirrored from the app's own AQI helper. Kept local so this module
- * stays free of the heavy weather service import (which depends on the AQI registry).
- */
-export function aqiCategoryUS(aqi: number): { label: string; color: string } {
-  if (aqi <= 50) return { label: 'Good', color: '#00e400' };
-  if (aqi <= 100) return { label: 'Moderate', color: '#FED60A' };
-  if (aqi <= 150) return { label: 'Unhealthy for Sensitive Groups', color: '#ff7e00' };
-  if (aqi <= 200) return { label: 'Unhealthy', color: '#ff0000' };
-  if (aqi <= 300) return { label: 'Very Unhealthy', color: '#8f3f97' };
-  return { label: 'Hazardous', color: '#7e0023' };
-}
+import { fetchAqicnFeed } from './aqicn';
 
 export const AQI_PREVIEW_TTL_MS = 10 * 60 * 1000;
 const CITY_LIST_TTL_MS = 60 * 60 * 1000;
@@ -44,9 +33,11 @@ const inFlight = new Map<string, Promise<AqiPreviewMap>>();
 let atmosCities: { ts: number; cities: AtmosCity[] } | null = null;
 let atmosCitiesInFlight: Promise<AtmosCity[]> | null = null;
 
-function unavailable(reason: string): AqiPreview {
+function unavailable(index: AqiIndex, reason: string): AqiPreview {
   return {
     aqi: null,
+    index,
+    scaleMax: AQI_SCALE_MAX[index],
     category: null,
     color: null,
     pm2_5: null,
@@ -112,6 +103,25 @@ async function fetchAtmosCities(): Promise<AtmosCity[]> {
   return atmosCitiesInFlight;
 }
 
+function buildPreview(
+  source: AqiSource,
+  value: number,
+  extras: Partial<AqiPreview>
+): AqiPreview {
+  const band = categoryFor(value, source.index);
+  return {
+    aqi: value,
+    index: source.index,
+    scaleMax: AQI_SCALE_MAX[source.index],
+    category: band.label,
+    color: band.color,
+    pm2_5: null,
+    pm10: null,
+    isUnavailable: false,
+    ...extras,
+  };
+}
+
 async function fetchOpenMeteoPreview(source: AqiSource, lat: number, lon: number): Promise<AqiPreview> {
   const domains = source.domains ? `&domains=${source.domains}` : '';
   const url =
@@ -120,26 +130,25 @@ async function fetchOpenMeteoPreview(source: AqiSource, lat: number, lon: number
 
   const res = await fetchJsonWithTimeout(url, { timeout: 8000 });
   const current = res?.current;
-  const aqi = finiteOrNull(current?.us_aqi);
-  if (aqi == null) {
-    return unavailable(source.coverage === 'europe' ? 'Outside Europe' : 'No data');
+  const raw = source.index === 'eea' ? current?.european_aqi : current?.us_aqi;
+  const value = finiteOrNull(raw);
+  if (value == null) {
+    return unavailable(
+      source.index,
+      source.coverage === 'europe' ? 'Outside Europe' : 'No data'
+    );
   }
 
-  const category = aqiCategoryUS(aqi);
-  return {
-    aqi,
-    category: category.label,
-    color: category.color,
+  return buildPreview(source, value, {
     pm2_5: finiteOrNull(current?.pm2_5),
     pm10: finiteOrNull(current?.pm10),
     updatedAt: current?.time ?? null,
-    isUnavailable: false,
-  };
+  });
 }
 
-async function fetchAtmosPreview(lat: number, lon: number): Promise<AqiPreview> {
+async function fetchAtmosPreview(source: AqiSource, lat: number, lon: number): Promise<AqiPreview> {
   const cities = await fetchAtmosCities();
-  if (cities.length === 0) return unavailable('Unavailable');
+  if (cities.length === 0) return unavailable(source.index, 'Unavailable');
 
   let best: AtmosCity | null = null;
   let bestDistance = Infinity;
@@ -152,53 +161,39 @@ async function fetchAtmosPreview(lat: number, lon: number): Promise<AqiPreview> 
   }
 
   if (!best || bestDistance > MAX_CITY_DISTANCE_KM) {
-    return unavailable(`No station within ${MAX_CITY_DISTANCE_KM} km`);
+    return unavailable(source.index, `No station within ${MAX_CITY_DISTANCE_KM} km`);
   }
-  if (best.aqi == null) return unavailable('Station offline');
+  if (best.aqi == null) return unavailable(source.index, 'Station offline');
 
-  const category = aqiCategoryUS(best.aqi);
-  return {
-    aqi: best.aqi,
-    category: best.category ?? category.label,
-    color: category.color,
+  return buildPreview(source, best.aqi, {
+    category: best.category ?? categoryFor(best.aqi, source.index).label,
     pm2_5: best.pm25,
     pm10: best.pm10,
     place: `${best.name}, ${best.country}`,
     updatedAt: best.updatedAt,
-    isUnavailable: false,
-  };
+  });
 }
 
-async function fetchWaqiPreview(lat: number, lon: number): Promise<AqiPreview> {
-  const token = import.meta.env.VITE_WAQI_TOKEN;
-  if (!token || token === 'demo') return unavailable('Token required');
-
-  const raw = await fetchJsonWithTimeout(
-    `https://api.waqi.info/feed/geo:${lat};${lon}/?token=${token}`,
-    { timeout: 8000 }
-  );
-  if (!raw || raw.status !== 'ok') return unavailable('No station nearby');
+async function fetchWaqiPreview(source: AqiSource, lat: number, lon: number): Promise<AqiPreview> {
+  const raw = await fetchAqicnFeed(lat, lon);
+  if (!raw) return unavailable(source.index, 'Token required');
+  if (raw.status !== 'ok') return unavailable(source.index, 'No station nearby');
 
   const data = raw.data;
-  const aqi = finiteOrNull(data?.aqi);
-  if (aqi == null) return unavailable('No station nearby');
+  const value = finiteOrNull(data?.aqi);
+  if (value == null) return unavailable(source.index, 'No station nearby');
 
-  const category = aqiCategoryUS(aqi);
-  return {
-    aqi,
-    category: category.label,
-    color: category.color,
+  return buildPreview(source, value, {
     pm2_5: finiteOrNull(data?.iaqi?.pm25?.v),
     pm10: finiteOrNull(data?.iaqi?.pm10?.v),
     place: data?.city?.name ? String(data.city.name) : null,
     updatedAt: data?.time?.iso ?? data?.time?.s ?? null,
-    isUnavailable: false,
-  };
+  });
 }
 
 async function fetchPreviewFor(source: AqiSource, lat: number, lon: number): Promise<AqiPreview> {
-  if (source.family === 'atmos') return fetchAtmosPreview(lat, lon);
-  if (source.family === 'waqi') return fetchWaqiPreview(lat, lon);
+  if (source.family === 'atmos') return fetchAtmosPreview(source, lat, lon);
+  if (source.family === 'waqi') return fetchWaqiPreview(source, lat, lon);
   return fetchOpenMeteoPreview(source, lat, lon);
 }
 
@@ -225,7 +220,7 @@ export function fetchAqiPreviews(lat: number, lon: number): Promise<AqiPreviewMa
         try {
           return [source.id, await fetchPreviewFor(source, lat, lon)] as const;
         } catch {
-          return [source.id, unavailable('Unavailable')] as const;
+          return [source.id, unavailable(source.index, 'Unavailable')] as const;
         }
       })
     );

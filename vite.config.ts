@@ -18,6 +18,40 @@ export default defineConfig(({mode}) => {
         configureServer(server) {
           server.middlewares.use(async (req, res, next) => {
             const url = req.url || '';
+
+            // AQICN / WAQI proxy: the token stays in the dev environment, never the client.
+            if (url.startsWith('/api/aqicn-proxy')) {
+              const urlObj = new URL(url, 'http://localhost');
+              const path = urlObj.searchParams.get('path') || '';
+              const token = env.AQICN_TOKEN;
+              if (!token) {
+                res.statusCode = 503;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ status: 'error', message: 'AQICN not configured' }));
+                return;
+              }
+              if (!/^\/feed\/geo:-?\d+(?:\.\d+)?;-?\d+(?:\.\d+)?\/$/.test(path)) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ status: 'error', message: 'Unsupported path' }));
+                return;
+              }
+              try {
+                const upstream = await fetch(`https://api.waqi.info${path}?token=${token}`, {
+                  headers: { Accept: 'application/json' },
+                });
+                const body = await upstream.text();
+                res.statusCode = upstream.status === 200 ? 200 : 502;
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.end(body);
+              } catch (err: any) {
+                res.statusCode = 502;
+                res.end(JSON.stringify({ status: 'error', message: 'Upstream failure' }));
+              }
+              return;
+            }
+
             let targetBase = '';
             
             if (url.startsWith('/api/weather-proxy')) {

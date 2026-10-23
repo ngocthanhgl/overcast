@@ -142,6 +142,28 @@ window.addEventListener('unhandledrejection', (event) => {
 window.addEventListener('touchstart', () => {}, { passive: true });
 window.addEventListener('touchmove', () => {}, { passive: true });
 
+// The OneSignal SDK used to sit in <head> and blocked app start on a slow CDN.
+// Load it once the first paint is done; the app already queues work through OneSignalDeferred.
+function loadOneSignalSdk() {
+  if (document.querySelector('script[data-onesignal]')) return;
+  const script = document.createElement('script');
+  script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+  script.defer = true;
+  script.setAttribute('data-onesignal', 'true');
+  document.head.appendChild(script);
+}
+
+const whenIdle = (cb: () => void) => {
+  const w = window as unknown as { requestIdleCallback?: (fn: () => void, opts?: { timeout: number }) => number };
+  if (typeof w.requestIdleCallback === 'function') {
+    w.requestIdleCallback(cb, { timeout: 3000 });
+  } else {
+    window.setTimeout(cb, 1500);
+  }
+};
+
+window.addEventListener('load', () => whenIdle(loadOneSignalSdk), { once: true });
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>

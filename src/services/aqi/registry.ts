@@ -4,44 +4,58 @@ import type { AqiSource, AqiSourceId } from './types';
  * Free air quality sources.
  *
  * Open-Meteo serves the CAMS atmospheric composition forecasts (keyless, coordinate
- * precise). atmos.today publishes a keyless, CORS-open city list. WAQI exposes ground
- * monitoring stations (best coverage in Asia) but needs a token, so it reports as
- * unavailable until one is configured.
+ * precise) and can report either the US EPA or the European EEA index. atmos.today
+ * publishes a keyless, CORS-open city list. WAQI exposes ground monitoring stations
+ * (best coverage in Asia) through a keyless proxy endpoint; the token stays on the
+ * server side.
  */
 export const AQI_SOURCES: AqiSource[] = [
   {
-    id: 'cams_global',
-    name: 'CAMS Global',
-    descriptionKey: 'aqi.cams_global.detail',
+    id: 'cams_global_us',
+    name: 'CAMS Global · US AQI',
+    descriptionKey: 'aqi.cams_global_us.detail',
     family: 'open-meteo',
     coverage: 'global',
+    index: 'us_epa',
     domains: 'cams_global',
   },
   {
-    id: 'cams_europe',
-    name: 'CAMS Europe',
-    descriptionKey: 'aqi.cams_europe.detail',
+    id: 'cams_global_eu',
+    name: 'CAMS Global · European AQI',
+    descriptionKey: 'aqi.cams_global_eu.detail',
+    family: 'open-meteo',
+    coverage: 'global',
+    index: 'eea',
+    domains: 'cams_global',
+  },
+  {
+    id: 'cams_europe_eu',
+    name: 'CAMS Europe · European AQI',
+    descriptionKey: 'aqi.cams_europe_eu.detail',
     family: 'open-meteo',
     coverage: 'europe',
+    index: 'eea',
     domains: 'cams_europe',
   },
   {
-    id: 'atmos',
-    name: 'atmos.today',
-    descriptionKey: 'aqi.atmos.detail',
+    id: 'atmos_us',
+    name: 'atmos.today · US AQI',
+    descriptionKey: 'aqi.atmos_us.detail',
     family: 'atmos',
     coverage: 'cities',
+    index: 'us_epa',
   },
   {
-    id: 'waqi',
-    name: 'WAQI Stations',
-    descriptionKey: 'aqi.waqi.detail',
+    id: 'waqi_us',
+    name: 'WAQI Stations · US AQI',
+    descriptionKey: 'aqi.waqi_us.detail',
     family: 'waqi',
     coverage: 'cities',
+    index: 'us_epa',
   },
 ];
 
-export const DEFAULT_AQI_SOURCE_ID: AqiSourceId = 'cams_global';
+export const DEFAULT_AQI_SOURCE_ID: AqiSourceId = 'cams_global_us';
 
 const BY_ID = new Map<AqiSourceId, AqiSource>(AQI_SOURCES.map((source) => [source.id, source]));
 

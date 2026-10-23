@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { formatTemp } from './lib/units';
 import { Location, WeatherData, WeatherState, Settings } from './types';
-import { fetchWeather, fetchWeatherBulk, getMoonPhaseInfo, getCurrentHourIndex, reverseGeocode, getCurrentWeatherState, getAQIDataWithFallback, getDataAgeHours, getAQIFromCacheOrLive, fetchIPLocation, getPrefetchUrls, getWeatherThemeColor } from './services/weatherService';
+import { fetchWeather, fetchWeatherBulk, getMoonPhaseInfo, getCurrentHourIndex, reverseGeocode, getCurrentWeatherState, getAQIDataWithFallback, getAQICategory, getDataAgeHours, getAQIFromCacheOrLive, fetchIPLocation, getPrefetchUrls, getWeatherThemeColor } from './services/weatherService';
 import { getCachedWeatherData, saveWeatherData, STORAGE_KEYS, getCityKey, CACHE_EXPIRY } from './lib/storage';
 import { setActiveProviderId } from './services/providers/active';
 import { DEFAULT_PROVIDER_ID, isProviderId } from './services/providers/registry';
@@ -469,6 +469,14 @@ export default function App() {
   }, [state]);
 
   const [isAppLoaded, setIsAppLoaded] = useState(false);
+
+  // Welcome screen effects (blur, ping, pulse) are held back until the first paint
+  // settles, so a cold start does not animate filters while the bundle is compiling.
+  const [firstPaintSettled, setFirstPaintSettled] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setFirstPaintSettled(true), 600);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -2525,14 +2533,18 @@ export default function App() {
       });
     }
 
-    // 5. AQI Alert
-    if (w.airQuality && w.airQuality.usAqi > 100) {
-      alerts.push({
-        id: 'aqi-alert',
-        type: 'severe',
-        title: 'Air Quality Warning',
-        message: `Air quality is ${w.airQuality.description} (${w.airQuality.usAqi}).`
-      });
+    // 5. AQI Alert — category based so every index scale triggers at the right level.
+    if (w.airQuality && !w.airQuality.isUnavailable) {
+      const aqiBand = getAQICategory(w.airQuality.usAqi, w.airQuality.index === 'eea' ? 'EU' : w.airQuality.index === 'cpcb' ? 'IN' : 'US');
+      const badBands = ['Unhealthy for Sensitive Groups', 'Unhealthy', 'Very Unhealthy', 'Hazardous', 'Poor', 'Very Poor', 'Extremely Poor'];
+      if (badBands.includes(aqiBand.label)) {
+        alerts.push({
+          id: 'aqi-alert',
+          type: 'severe',
+          title: 'Air Quality Warning',
+          message: `Air quality is ${w.airQuality.description} (${w.airQuality.usAqi}).`
+        });
+      }
     }
 
     const now = Date.now();
@@ -3402,6 +3414,7 @@ export default function App() {
               onClose={toggleSettings} 
               activeWeather={activeWeather}
               activeLocation={activeLocation}
+              locations={state.locations}
               panelStackRef={panelStackRef}
               handleBack={handleBack}
               pushPanel={pushPanel}
@@ -3660,15 +3673,15 @@ export default function App() {
                     {/* Exquisite custom location icon (not standard boring map pin) */}
                     <div className="relative flex items-center justify-center w-36 h-36 mb-6 z-10 select-none">
                       {/* Concentric layered glowing circles */}
-                      <div className="absolute inset-0 rounded-full bg-white/20 blur-md animate-pulse" />
-                      <div className="absolute inset-2 rounded-full bg-gradient-to-b from-white/60 to-white/10 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] backdrop-blur-[6px] border border-white/45" />
+                      <div className="absolute inset-0 rounded-full bg-white/20 animate-pulse" style={firstPaintSettled ? undefined : { animation: 'none' }} />
+                      <div className={cn("absolute inset-2 rounded-full bg-gradient-to-b from-white/60 to-white/10 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] border border-white/45", firstPaintSettled && "backdrop-blur-[6px]")} />
                       <div className="absolute inset-8 rounded-full bg-white flex items-center justify-center shadow-md">
                         {/* Core sleek compass/navigation arrow */}
                         <svg className="w-10 h-10 text-[#0560fa] filter drop-shadow-[0_2px_8px_rgba(5,96,250,0.25)]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M12 2L2 22L12 18L22 22L12 2Z" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
                         </svg>
                       </div>
-                      <div className="absolute -inset-2 rounded-full border border-blue-500/10 animate-[ping_4s_infinite_ease-in-out]" />
+                      <div className={cn("absolute -inset-2 rounded-full border border-blue-500/10", firstPaintSettled && "animate-[ping_4s_infinite_ease-in-out]")} />
                     </div>
 
                     <div className="flex flex-col items-center z-10 w-full mb-8">

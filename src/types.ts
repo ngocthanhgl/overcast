@@ -1,5 +1,6 @@
 import type { ProviderId } from './services/providers/types';
 import type { AqiSourceId } from './services/aqi/types';
+import type { AqiIndex } from './services/aqi/scale';
 
 export interface Location {
   id: number;
@@ -63,6 +64,12 @@ export interface WeatherData {
   };
   airQuality?: {
     usAqi: number;
+    /** Index scale the value is reported on (US EPA / EEA / CPCB). */
+    index?: AqiIndex;
+    /** Top of the gauge range, e.g. 500 for US AQI. */
+    scaleMax?: number;
+    /** Footer label, e.g. "AQI (US)". */
+    scaleLabel?: string;
     description: string;
     color: string;
     recommendation: string;
