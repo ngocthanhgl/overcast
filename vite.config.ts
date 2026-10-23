@@ -7,6 +7,20 @@ import {defineConfig, loadEnv} from 'vite';
 // Force Node to prefer IPv4 to avoid IPv6-routing timeouts or socket disconnects in the container
 dns.setDefaultResultOrder('ipv4first');
 
+/**
+ * Scrambles the AQICN token so the built bundle never contains it as plain text.
+ * The client reverses this in `src/services/aqi/aqicn.ts` with the same seed.
+ */
+function scrambleAqicnToken(token: string): string {
+  if (!token) return '';
+  const seed = 'overcast-aqi-v1';
+  let out = '';
+  for (let i = 0; i < token.length; i++) {
+    out += String.fromCharCode(token.charCodeAt(i) ^ seed.charCodeAt(i % seed.length));
+  }
+  return Buffer.from(out, 'binary').toString('base64');
+}
+
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
@@ -169,6 +183,9 @@ export default defineConfig(({mode}) => {
     ],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      // AQICN token is scrambled before it reaches the bundle, so the APK never carries the
+      // plaintext key. Rotation: change the CI secret and rebuild.
+      __AQICN_SCRAMBLED__: JSON.stringify(scrambleAqicnToken(env.AQICN_TOKEN || process.env.AQICN_TOKEN || '')),
     },
     resolve: {
       alias: {

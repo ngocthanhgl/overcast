@@ -21,6 +21,8 @@ interface WeatherHeroProps {
   onOpenSettings?: () => void;
   onOpenCityManager?: () => void;
   onOpenRadarMap?: () => void;
+  /** Skip the entry animations on the very first paint after a cold start. */
+  suppressEntryMotion?: boolean;
 }
 
 export default function WeatherHero({ 
@@ -32,7 +34,8 @@ export default function WeatherHero({
   slideDirection,
   onOpenSettings,
   onOpenCityManager,
-  onOpenRadarMap
+  onOpenRadarMap,
+  suppressEntryMotion = false
 }: WeatherHeroProps) {
   if (!weather || !weather.current) return null;
   const info = getCurrentWeatherState(weather);
@@ -73,7 +76,7 @@ export default function WeatherHero({
     return (
       <div className="flex flex-col w-full py-4 mb-0 font-sans select-none overflow-hidden relative">
         {/* Top Header Row within the Hero Card */}
-        <div className="flex items-center justify-between w-full mb-20 relative z-40">
+        <div className="flex items-center justify-between w-full mb-2 relative z-40">
           {/* Location Trigger */}
           <button
             onClick={(e) => {
@@ -166,7 +169,7 @@ export default function WeatherHero({
     <div className="flex flex-col items-center text-center pt-1 pb-6 overflow-visible">
       {/* Status Bar - Moon Phase & Last Updated */}
       <motion.div 
-        initial={{ y: -20, opacity: 0 }}
+        initial={suppressEntryMotion ? false : { y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={slideTransition}
         className="flex items-center gap-2 mb-4"
@@ -213,7 +216,7 @@ export default function WeatherHero({
         className="flex flex-col items-center overflow-visible w-full"
       >
         <motion.div 
-          initial={{ y: 15, opacity: 0 }}
+          initial={suppressEntryMotion ? false : { y: 15, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={slideTransition}
           className="mb-4 flex flex-col items-center overflow-visible"
@@ -228,7 +231,7 @@ export default function WeatherHero({
         </motion.div>
         
         <motion.div 
-          initial={{ y: 15, opacity: 0 }}
+          initial={suppressEntryMotion ? false : { y: 15, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={slideTransition}
           className="relative flex justify-center -mr-6"
@@ -241,7 +244,7 @@ export default function WeatherHero({
         </motion.div>
 
         <motion.div
-          initial={{ y: 15, opacity: 0 }}
+          initial={suppressEntryMotion ? false : { y: 15, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={slideTransition}
           className="text-xl font-bold text-app-text/90 mt-1 mb-1"
@@ -251,7 +254,7 @@ export default function WeatherHero({
         </motion.div>
 
         <motion.div 
-          initial={{ y: 15, opacity: 0 }}
+          initial={suppressEntryMotion ? false : { y: 15, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={slideTransition}
           className="flex flex-col items-center gap-2 mt-3"

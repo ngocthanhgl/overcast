@@ -2,7 +2,7 @@ import { AQI_SOURCES, getAqiSource } from './registry';
 import type { AqiPreview, AqiSource, AqiSourceId } from './types';
 import { AQI_SCALE_MAX, categoryFor, type AqiIndex } from './scale';
 import { fetchJsonWithTimeout } from '../providers/http';
-import { fetchAqicnFeed } from './aqicn';
+import { fetchAqicnFeed, aqicnFailureReason } from './aqicn';
 
 export const AQI_PREVIEW_TTL_MS = 10 * 60 * 1000;
 const CITY_LIST_TTL_MS = 60 * 60 * 1000;
@@ -176,8 +176,11 @@ async function fetchAtmosPreview(source: AqiSource, lat: number, lon: number): P
 
 async function fetchWaqiPreview(source: AqiSource, lat: number, lon: number): Promise<AqiPreview> {
   const raw = await fetchAqicnFeed(lat, lon);
-  if (!raw) return unavailable(source.index, 'Token required');
-  if (raw.status !== 'ok') return unavailable(source.index, 'No station nearby');
+  if (!raw) return unavailable(source.index, aqicnFailureReason());
+  if (raw.status !== 'ok') {
+    const detail = String(raw.data ?? '');
+    return unavailable(source.index, /invalid|key|token/i.test(detail) ? 'Token rejected' : 'No station nearby');
+  }
 
   const data = raw.data;
   const value = finiteOrNull(data?.aqi);

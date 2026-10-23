@@ -1371,15 +1371,18 @@ export const getDataAgeHours = (timeString: string | undefined): number => {
  */
 export const fetchAQI = async (_cityName: string, lat: number, lon: number): Promise<any> => {
   const raw = await fetchAqicnFeed(lat, lon);
-  if (raw?.status === 'ok' && Number(raw?.data?.aqi) > 0) return raw;
-  if (raw?.status === 'ok') return raw;
-  console.warn('No AQI data found for:', _cityName);
+  // WAQI answers `aqi: "-"` for stations with no live reading; only accept real numbers.
+  const value = Number(raw?.data?.aqi);
+  if (raw?.status === 'ok' && Number.isFinite(value) && value > 0) return raw;
+  console.warn('No usable AQI data found for:', _cityName);
   return null;
 };
 
 export async function mapWAQIResultToAirQuality(waqiData: any, cityName: string, countryCode?: string) {
   if (!waqiData) return null;
-  const aqiVal = waqiData.aqi;
+  // Guard against WAQI's "-" placeholder: never surface a non-numeric index.
+  const aqiVal = Number(waqiData.aqi);
+  if (!Number.isFinite(aqiVal) || aqiVal <= 0) return null;
   const iaqi = waqiData.iaqi || {};
   const pm2_5 = iaqi.pm25?.v;
   const pm10 = iaqi.pm10?.v;
@@ -1401,6 +1404,9 @@ export async function mapWAQIResultToAirQuality(waqiData: any, cityName: string,
 
   return {
     usAqi: finalAqi,
+    index: (standard === "IN" ? 'cpcb' : 'us_epa') as 'cpcb' | 'us_epa',
+    scaleMax: 500,
+    scaleLabel: standard === "IN" ? "AQI (India)" : "AQI (US)",
     description: category.label,
     color: category.color,
     recommendation: category.recommendation,

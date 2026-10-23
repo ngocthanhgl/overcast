@@ -26,6 +26,7 @@ jobs:
       - name: Build web app
         env:
           VITE_AQI_PROXY_BASE: ${{ vars.VITE_AQI_PROXY_BASE }}
+          AQICN_TOKEN: ${{ secrets.AQICN_TOKEN }}
         run: npm run build
 
       - uses: actions/setup-java@v4
@@ -62,13 +63,22 @@ jobs:
 
       - name: Scaffold Capacitor Android shell
         run: |
-          npm i --no-save @capacitor/cli@6 @capacitor/android@6 @capacitor/assets
+          npm i --no-save @capacitor/cli@6 @capacitor/android@6 @capacitor/assets @capacitor/splash-screen@6
           cat > capacitor.config.json <<'JSON'
           {
             "appId": "app.overcast.pwa",
             "appName": "Overcast",
             "webDir": "dist",
-            "server": { "androidScheme": "https" }
+            "server": { "androidScheme": "https" },
+            "plugins": {
+              "SplashScreen": {
+                "launchAutoHide": false,
+                "launchShowDuration": 0,
+                "backgroundColor": "#ffffff",
+                "androidSplashResourceName": "splash",
+                "showSpinner": false
+              }
+            }
           }
           JSON
           npx cap add android

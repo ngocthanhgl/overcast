@@ -2963,6 +2963,7 @@ export default function App() {
               setShowRadarMap(true);
               pushPanel(() => setShowRadarMap(false), 'radarmap');
             }}
+            suppressEntryMotion={!firstPaintSettled}
           />
           
           <div className="flex flex-col gap-4">
@@ -3204,7 +3205,7 @@ export default function App() {
 
         {state.locations.length > 0 && state.settings.layoutWeatherDetail !== 'compact' && (
           <motion.div 
-            className="w-full h-28 relative pointer-events-none"
+            className="w-full h-[52px] relative pointer-events-none"
             initial={false}
             animate={{
               y: headerVisible ? 0 : -30,
@@ -3216,7 +3217,7 @@ export default function App() {
             }}
           >
             <motion.div className={cn(
-              "absolute left-6 top-[24px]",
+              "absolute left-6 top-0",
               (state.showSettings || showCityManager || showRadarMap) ? "pointer-events-none" : "pointer-events-auto"
             )}>
               <motion.button 
@@ -3251,7 +3252,7 @@ export default function App() {
 
             {/* Settings Button - Top Right */}
             <motion.div className={cn(
-              "absolute right-6 top-[24px] z-30",
+              "absolute right-6 top-0 z-30",
               (state.showSettings || showCityManager || showRadarMap) ? "pointer-events-none" : "pointer-events-auto"
             )}>
               <motion.button 
@@ -3288,12 +3289,12 @@ export default function App() {
 
 
             {/* City Name & Pagination - Center */}
-            <div className="absolute top-[24px] left-1/2 -translate-x-1/2 w-[calc(100%-160px)] max-w-[230px] flex flex-col items-center pointer-events-none mt-2">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[calc(100%-160px)] max-w-[230px] flex flex-col items-center pointer-events-none">
               <AnimatePresence mode="wait">
                 {state.locations.length > 0 && (
                   <motion.div 
                     key={`city-header-${state.activeLocationIndex}`}
-                    initial={{ opacity: 0, y: 3 }}
+                    initial={firstPaintSettled ? { opacity: 0, y: 3 } : false}
                     animate={{ 
                       opacity: (state.showSettings || showCityManager || showRadarMap) ? 0 : 1, 
                       y: (state.showSettings || showCityManager || showRadarMap) ? -3 : 0 
@@ -3567,10 +3568,10 @@ export default function App() {
 
       <main 
         className={cn(
-          "max-w-[390px] mx-auto px-4 sm:px-[21px] pb-32 min-h-screen relative touch-pan-y bottom-content transition-[opacity,transform,padding-top] duration-250 ease-out",
+          "max-w-[390px] mx-auto px-4 sm:px-[21px] pb-10 min-h-screen relative touch-pan-y bottom-content transition-[opacity,transform,padding-top] duration-250 ease-out",
           state.settings.layoutWeatherDetail === 'compact'
-            ? "pt-[24px]"
-            : "pt-[116px]",
+            ? "pt-[calc(env(safe-area-inset-top,24px)+4px)]"
+            : "pt-[calc(env(safe-area-inset-top,24px)+60px)]",
           isAnyModalOpen ? "pointer-events-none" : ""
         )}
       >
