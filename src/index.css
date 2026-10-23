@@ -50,22 +50,17 @@
    the UI simply softens in instead of appearing as a hard cut. */
 #root {
   opacity: 0;
-  overflow-x: clip;
 }
 #root.app-ready {
   opacity: 1;
   transition: opacity 200ms ease-out;
 }
 
-/* No horizontal scroll, ever: one stray wide element used to expose a horizontal scrollbar.
-   Android WebView's root scrollbars are switched off natively (see MainActivity.java). */
-html,
-body {
-  overflow-x: hidden;
-  overscroll-behavior: none;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
+/* NOTE: do NOT set overflow on <html>. The app's own body rule already has
+   `overflow-x: hidden !important`, which CSS propagates to the viewport while html stays
+   `visible`. Setting overflow on html stops that propagation, body becomes a scroll container
+   and the whole app can no longer scroll. Horizontal scrollbars are handled natively instead
+   (see MainActivity.java). */
 
 /* ============================================
    SCROLLBAR — COMPLETELY HIDDEN EVERYWHERE (SUPPORTING BROWSERS, SAFARI & ANDROID WEBVIEW)
