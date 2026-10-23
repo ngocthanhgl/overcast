@@ -3050,16 +3050,38 @@ export default function App() {
   useEffect(() => {
     // Exclude showDailyForecastDetail to preserve exact native background scroll position
     const shouldLockScroll = state.showSettings || showCityManager || showRadarMap || showSearch;
+    const root = document.documentElement;
     if (shouldLockScroll) {
       savedScrollPositionRef.current = window.scrollY;
       document.body.style.overflow = 'hidden';
+      if (showRadarMap) {
+        root.classList.add('radar-map-open');
+        document.body.style.overscrollBehavior = 'none';
+        root.style.overscrollBehavior = 'none';
+        document.body.style.touchAction = 'none';
+        root.style.touchAction = 'none';
+      }
     } else {
       document.body.style.overflow = '';
     }
     return () => {
       document.body.style.overflow = '';
+      document.body.style.overscrollBehavior = '';
+      document.body.style.touchAction = '';
+      root.style.overscrollBehavior = '';
+      root.style.touchAction = '';
+      root.classList.remove('radar-map-open');
     };
   }, [state.showSettings, showCityManager, showRadarMap, showSearch]);
+
+  useEffect(() => {
+    const syncHidden = () => {
+      document.documentElement.dataset.appHidden = document.hidden ? 'true' : 'false';
+    };
+    syncHidden();
+    document.addEventListener('visibilitychange', syncHidden);
+    return () => document.removeEventListener('visibilitychange', syncHidden);
+  }, []);
 
   const currentCode = activeWeather?.current?.weatherCode || 0;
   const currentSunrise = activeWeather?.daily?.sunrise?.[0];

@@ -88,11 +88,6 @@ function ProviderRow({
             <h4 className="text-[15.5px] font-semibold text-app-text tracking-tight leading-tight truncate">
               {provider.name}
             </h4>
-            {provider.experimental && (
-              <span className="text-[9.5px] font-semibold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded-full bg-app-text/[0.06] border border-app-border text-app-text-dim shrink-0">
-                Experimental
-              </span>
-            )}
           </div>
           <p className="text-[13px] text-app-text-dim mt-1.5 leading-snug truncate">
             {loading && !preview ? (

@@ -49,7 +49,7 @@ import {
   ArrowLeft,
   Pencil
 } from 'lucide-react';
-import React, { useState, useEffect, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 import { STATIC_SVGS } from './WeatherSvgData';
@@ -116,6 +116,8 @@ interface WeatherIconProps {
   forceColoured?: boolean;
   isSettingsPreview?: boolean;
   bypassDelay?: boolean;
+  /** Mount animated SVG only when the icon scrolls into view (used by forecast lists). */
+  deferUntilVisible?: boolean;
 }
 
 const WEATHER_ICONS_SET = new Set([
@@ -143,6 +145,85 @@ function subscribeAnimatedSvgs(cb: () => void) {
   return () => { animatedSvgListeners.delete(cb); };
 }
 function getAnimatedSnapshot() { return animatedSvgData; }
+
+/**
+ * Animated SVG data from amCharts ships with a duplicate inline <style> block and an
+ * SVG blur filter per icon. Both are expensive: the browser re-rasterizes the filter on
+ * every animation frame, and every icon re-parses the same keyframes. Strip the filter
+ * per icon and inject the unique keyframes once for the whole document.
+ */
+const sanitizedSvgCache = new Map<string, string>();
+let animatedCssInjected = false;
+
+function normalizeCss(css: string): string {
+  return css
+    .replace(/<!\[CDATA\[|\]\]>/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function ensureAnimatedCss(svgs: Record<string, string>) {
+  if (animatedCssInjected || typeof document === 'undefined') return;
+  animatedCssInjected = true;
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const svg of Object.values(svgs)) {
+    const styleRe = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+    let match: RegExpExecArray | null;
+    while ((match = styleRe.exec(svg))) {
+      const css = normalizeCss(match[1]);
+      if (css && !seen.has(css)) {
+        seen.add(css);
+        parts.push(css);
+      }
+    }
+  }
+  if (!parts.length) return;
+  const styleEl = document.createElement('style');
+  styleEl.id = 'weather-animated-keyframes';
+  styleEl.textContent = parts.join('\n');
+  document.head.appendChild(styleEl);
+}
+
+function sanitizeAnimatedSvg(filename: string, svg: string): string {
+  const cached = sanitizedSvgCache.get(filename);
+  if (cached) return cached;
+  const clean = svg
+    .replace(/<defs[\s\S]*?<\/defs>/gi, '')
+    .replace(/\sfilter="url\([^)]*\)"/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '');
+  sanitizedSvgCache.set(filename, clean);
+  return clean;
+}
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+let batteryMotionPromise: Promise<boolean> | null = null;
+
+function batteryAllowsMotion(): Promise<boolean> {
+  if (batteryMotionPromise) return batteryMotionPromise;
+  const nav = navigator as Navigator & {
+    getBattery?: () => Promise<{ level: number; charging: boolean }>;
+  };
+  if (!nav.getBattery) {
+    batteryMotionPromise = Promise.resolve(true);
+    return batteryMotionPromise;
+  }
+  batteryMotionPromise = nav
+    .getBattery()
+    .then((battery) => !(battery.level <= 0.2 && !battery.charging))
+    .catch(() => true);
+  return batteryMotionPromise;
+}
+
+function lowMemoryDevice(): boolean {
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  return typeof memory === 'number' && memory <= 4;
+}
 
 export const EmbeddedSvg = ({ 
   src, 
@@ -304,7 +385,7 @@ function getSvgFilename(name: string): string {
   return 'weather.svg';
 }
 
-export const WeatherIcon = React.memo(({ name, style: propStyle = 'outline', className, strokeWidth = 1.4, forceColoured = false, isSettingsPreview = false, bypassDelay = false }: WeatherIconProps) => {
+export const WeatherIcon = React.memo(({ name, style: propStyle = 'outline', className, strokeWidth = 1.4, forceColoured = false, isSettingsPreview = false, bypassDelay = false, deferUntilVisible = false }: WeatherIconProps) => {
   const [isStaticDelay, setIsStaticDelay] = useState(() => {
     if (bypassDelay) return false;
     const lastSwitch = (window as any).lastCitySwitchTime || 0;
@@ -315,6 +396,45 @@ export const WeatherIcon = React.memo(({ name, style: propStyle = 'outline', cla
     return (Date.now() - lastSwitch) < 2000;
   });
   const animatedSvgs = useSyncExternalStore(subscribeAnimatedSvgs, getAnimatedSnapshot, getAnimatedSnapshot);
+  const iconRef = useRef<HTMLSpanElement>(null);
+  const [hasBeenVisible, setHasBeenVisible] = useState(!deferUntilVisible);
+  const [isVisible, setIsVisible] = useState(!deferUntilVisible);
+  const [motionAllowed, setMotionAllowed] = useState(true);
+
+  useEffect(() => {
+    if (!deferUntilVisible) return;
+    const el = iconRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setHasBeenVisible(true);
+      setIsVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.some((entry) => entry.isIntersecting);
+        setIsVisible(visible);
+        if (visible) setHasBeenVisible(true);
+      },
+      { rootMargin: '120px 0px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [deferUntilVisible]);
+
+  useEffect(() => {
+    if (!deferUntilVisible) return;
+    if (prefersReducedMotion() || lowMemoryDevice()) {
+      setMotionAllowed(false);
+      return;
+    }
+    let active = true;
+    batteryAllowsMotion().then((allowed) => {
+      if (active) setMotionAllowed(allowed);
+    });
+    return () => {
+      active = false;
+    };
+  }, [deferUntilVisible]);
 
   useEffect(() => {
     if (bypassDelay) return;
@@ -356,6 +476,15 @@ export const WeatherIcon = React.memo(({ name, style: propStyle = 'outline', cla
   if (isStaticDelay && style === 'animated') {
     style = 'static';
   }
+
+  // Forecast lists only animate icons that have been on screen, and only when the device
+  // is not in reduced-motion / low-memory / battery-saver mode.
+  if (style === 'animated' && deferUntilVisible && (!hasBeenVisible || !motionAllowed)) {
+    style = 'static';
+  }
+
+  const isAnimatedSvg = style === 'animated';
+  const isAnimationPaused = deferUntilVisible && !isVisible;
 
   // Handle new animated outline SVGs with high-performance embedding + cache
   if (style === 'animated_outline') {
@@ -562,14 +691,22 @@ export const WeatherIcon = React.memo(({ name, style: propStyle = 'outline', cla
       ? (isSunOrMoon ? 1.95 : 1.35) 
       : (isSunOrMoon ? 2.025 : 1.35);
     const svgMap = style === 'static' ? STATIC_SVGS : (animatedSvgs ?? STATIC_SVGS);
-    const svgContent = svgMap[filename];
+    let svgContent = svgMap[filename];
+
+    if (svgContent && style === 'animated') {
+      if (animatedSvgs) ensureAnimatedCss(animatedSvgs);
+      svgContent = sanitizeAnimatedSvg(filename, svgContent);
+    }
 
     if (svgContent) {
       return (
         <span
+          ref={iconRef}
           className={cn(
             "select-none inline-flex items-center justify-center [&_svg]:w-full [&_svg]:h-full [&_svg]:block", 
             style === 'static' && "static-weather-icon-wrapper",
+            isAnimatedSvg && "weather-anim",
+            isAnimatedSvg && isAnimationPaused && "weather-anim-paused",
             className
           )}
           style={{ 

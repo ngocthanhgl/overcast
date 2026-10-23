@@ -8,7 +8,11 @@ export type ProviderId =
   | 'cma'
   | 'jma'
   | 'ukmo'
+  | 'ukmo10'
   | 'meteofrance'
+  | 'gem'
+  | 'knmi'
+  | 'dmi'
   | 'metno'
   | 'wttr';
 
@@ -25,7 +29,6 @@ export interface WeatherProvider {
   fidelity: ProviderFidelity;
   /** Open-Meteo `models` parameter, when applicable. */
   models?: string;
-  experimental?: boolean;
 }
 
 /** A provider payload normalized to the app model. Fields a source does not report stay undefined. */

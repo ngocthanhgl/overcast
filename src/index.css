@@ -303,6 +303,33 @@ body::-webkit-scrollbar,
   transition: none !important;
 }
 
+/* Animated weather SVGs: keyframes are injected once globally. Pause offscreen icons. */
+.weather-anim-paused,
+.weather-anim-paused * {
+  animation-play-state: paused !important;
+  -webkit-animation-play-state: paused !important;
+}
+html[data-app-hidden="true"] .weather-anim,
+html[data-app-hidden="true"] .weather-anim * {
+  animation-play-state: paused !important;
+  -webkit-animation-play-state: paused !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .weather-anim,
+  .weather-anim * {
+    animation: none !important;
+    -webkit-animation: none !important;
+  }
+}
+
+/* Radar map: keep WebView scroll/pull-to-refresh from cancelling Windy's touch gesture. */
+html.radar-map-open,
+html.radar-map-open body {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+}
+
 /* Prevent hard contrast issues with hardcoded tailwind white classes */
 [data-theme="light"] .text-white {
   color: var(--text-primary) !important;

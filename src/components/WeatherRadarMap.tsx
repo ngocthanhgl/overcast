@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Icons } from './WeatherIcons';
 import { Location } from '../types';
@@ -21,6 +21,32 @@ export default function WeatherRadarMap({ activeLocation, onClose, hapticEnabled
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isWeakNetwork, setIsWeakNetwork] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const [mapInstanceKey, setMapInstanceKey] = useState(0);
+  const hiddenAtRef = useRef<number | null>(null);
+
+  const resetMap = () => {
+    Haptic.light(hapticEnabled);
+    setIframeLoading(true);
+    setMapInstanceKey((key) => key + 1);
+  };
+
+  // Windy bundles Leaflet 1.4, which keeps a stale pinch state when the WebView cancels a
+  // touch gesture. Remounting the iframe is the only way to clear it from the parent page.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        hiddenAtRef.current = Date.now();
+        return;
+      }
+      if (hiddenAtRef.current && Date.now() - hiddenAtRef.current > 30000) {
+        setIframeLoading(true);
+        setMapInstanceKey((key) => key + 1);
+      }
+      hiddenAtRef.current = null;
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setMapReady(true), 400);
@@ -194,7 +220,7 @@ export default function WeatherRadarMap({ activeLocation, onClose, hapticEnabled
               {/* Live Embed Iframe — mounted after the slide-in animation settles to avoid raster contention jitter */}
               {mapReady && (
                 <iframe
-                  key={embedUrl}
+                  key={`${embedUrl}-${mapInstanceKey}`}
                   id="radar-iframe"
                   src={embedUrl}
                   className="w-full h-full border-0 rounded-[28px] select-none relative z-10"
@@ -205,6 +231,17 @@ export default function WeatherRadarMap({ activeLocation, onClose, hapticEnabled
                   onLoad={() => setIframeLoading(false)}
                 />
               )}
+
+              {/* Windy/Leaflet 1.4 can keep a stale pinch state after a cancelled gesture. */}
+              <button
+                type="button"
+                onClick={resetMap}
+                aria-label="Reset map"
+                className="absolute right-3 bottom-14 z-30 flex items-center gap-1.5 rounded-full border border-white/15 bg-black/45 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-white/80 backdrop-blur-md active:scale-95 transition-transform"
+              >
+                <Icons.RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset map</span>
+              </button>
 
               {/* Loading Layer */}
               <AnimatePresence>

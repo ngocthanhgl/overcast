@@ -76,6 +76,38 @@ export const PROVIDERS: WeatherProvider[] = [
     models: 'meteofrance_seamless',
   },
   {
+    id: 'gem',
+    name: 'GEM Canada',
+    descriptionKey: 'provider.gem.detail',
+    family: 'open-meteo',
+    fidelity: 'full',
+    models: 'gem_seamless',
+  },
+  {
+    id: 'knmi',
+    name: 'KNMI',
+    descriptionKey: 'provider.knmi.detail',
+    family: 'open-meteo',
+    fidelity: 'full',
+    models: 'knmi_seamless',
+  },
+  {
+    id: 'dmi',
+    name: 'DMI',
+    descriptionKey: 'provider.dmi.detail',
+    family: 'open-meteo',
+    fidelity: 'full',
+    models: 'dmi_seamless',
+  },
+  {
+    id: 'ukmo10',
+    name: 'UKMO 10km',
+    descriptionKey: 'provider.ukmo10.detail',
+    family: 'open-meteo',
+    fidelity: 'full',
+    models: 'ukmo_global_deterministic_10km',
+  },
+  {
     id: 'metno',
     name: 'MET Norway',
     descriptionKey: 'provider.metno.detail',
@@ -88,7 +120,6 @@ export const PROVIDERS: WeatherProvider[] = [
     descriptionKey: 'provider.wttr.detail',
     family: 'wttr',
     fidelity: 'partial',
-    experimental: true,
   },
 ];
 

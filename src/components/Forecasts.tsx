@@ -391,9 +391,10 @@ function HourlyForecastBase({ weather, settings }: ForecastProps) {
                         <div className="h-7 mb-3.5 flex items-center justify-center">
                           <WeatherIcon 
                             name={info.icon as any} 
-                            style="static" 
+                            style={settings.iconStyle}
                             className="w-[25px] h-[25px]"
                             strokeWidth={1.8}
+                            deferUntilVisible
                           />
                         </div>
 
@@ -502,9 +503,10 @@ function HourlyForecastBase({ weather, settings }: ForecastProps) {
               <div className="flex-1 flex items-center justify-center my-0.5 relative z-10">
                 <WeatherIcon 
                   name={info.icon as any} 
-                  style="static" 
+                  style={settings.iconStyle}
                   className="w-[28px] h-[28px]"
                   strokeWidth={1.8}
+                  deferUntilVisible
                 />
               </div>
 
@@ -592,9 +594,10 @@ function DailyForecastBase({ weather, settings, onOpenDetailed }: DailyForecastP
                   <div className="flex-1 flex justify-center">
                     <WeatherIcon 
                       name={info.icon as any} 
-                      style="static" 
+                      style={settings.iconStyle}
                       className="w-6 h-6" 
                       strokeWidth={1.8}
+                      deferUntilVisible
                     />
                   </div>
 
@@ -619,9 +622,10 @@ function DailyForecastBase({ weather, settings, onOpenDetailed }: DailyForecastP
                 <div className="w-8 flex justify-center shrink-0">
                   <WeatherIcon 
                     name={info.icon as any} 
-                    style="static" 
+                    style={settings.iconStyle}
                     className="w-6 h-6" 
                     strokeWidth={1.8}
+                    deferUntilVisible
                   />
                 </div>
 
