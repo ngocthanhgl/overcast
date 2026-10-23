@@ -2255,24 +2255,33 @@ export default function App() {
 
   // Fire median_app_loaded and remove inline HTML loading screen when App is ready
   const hasFiredLoadedEventRef = useRef(false);
+  const [bootDone, setBootDone] = useState(false);
   useEffect(() => {
-    if (!hasFiredLoadedEventRef.current && (!state.loading || state.locations.length === 0)) {
-      hasFiredLoadedEventRef.current = true;
-      
-      // Remove loading screen
-      const el = document.getElementById('app-loading-screen');
-      if (el) {
-        el.style.opacity = '0';
-        el.style.transition = 'opacity 0.25s ease-out';
-        setTimeout(() => el.remove(), 250);
-      } else {
-        // Fallback if elements don't exist yet but events must fire
-      }
-      
-      // Dispatch Median loaded event
-      console.log('[Median Bridge] App is ready. Dispatching median_app_loaded event.');
-      window.dispatchEvent(new CustomEvent('median_app_loaded'));
-    }
+    if (hasFiredLoadedEventRef.current) return;
+    if (state.loading && state.locations.length > 0) return;
+    hasFiredLoadedEventRef.current = true;
+
+    const el = document.getElementById('app-loading-screen');
+    const startedAt = performance.now();
+    // Keep the overlay up for at least one painted frame plus a floor, so the reveal is a
+    // single cross-fade instead of a flash of a half-painted screen.
+    const MIN_VISIBLE_MS = 240;
+
+    // Two frames = the content underneath has actually painted before we start fading.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const wait = Math.max(0, MIN_VISIBLE_MS - (performance.now() - startedAt));
+      window.setTimeout(() => {
+        if (el) {
+          el.style.transition = 'opacity 0.22s ease-out';
+          el.style.opacity = '0';
+          window.setTimeout(() => { el.remove(); setBootDone(true); }, 240);
+        } else {
+          setBootDone(true);
+        }
+        console.log('[Median Bridge] App is ready. Dispatching median_app_loaded event.');
+        window.dispatchEvent(new CustomEvent('median_app_loaded'));
+      }, wait);
+    }));
   }, [state.loading, state.locations.length]);
 
   // Service Worker pre-fetching strategy for adjacent cities in the swipe sequence
@@ -2953,7 +2962,7 @@ export default function App() {
               setShowRadarMap(true);
               pushPanel(() => setShowRadarMap(false), 'radarmap');
             }}
-            suppressEntryMotion={!firstPaintSettled}
+            suppressEntryMotion={!bootDone}
           />
           
           <div className="flex flex-col gap-4">
@@ -3195,7 +3204,7 @@ export default function App() {
 
         {state.locations.length > 0 && state.settings.layoutWeatherDetail !== 'compact' && (
           <motion.div 
-            className="w-full h-[52px] relative pointer-events-none"
+            className="w-full h-12 relative pointer-events-none"
             initial={false}
             animate={{
               y: headerVisible ? 0 : -30,
@@ -3279,7 +3288,7 @@ export default function App() {
 
 
             {/* City Name & Pagination - Center */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[calc(100%-160px)] max-w-[230px] flex flex-col items-center pointer-events-none">
+            <div className="absolute top-0 h-12 left-1/2 -translate-x-1/2 w-[calc(100%-160px)] max-w-[230px] flex flex-col items-center justify-center pointer-events-none">
               <AnimatePresence mode="wait">
                 {state.locations.length > 0 && (
                   <motion.div 
@@ -3558,9 +3567,9 @@ export default function App() {
 
       <main 
         className={cn(
-          "max-w-[390px] mx-auto px-4 sm:px-[21px] pb-10 min-h-screen relative touch-pan-y bottom-content transition-[opacity,transform,padding-top] duration-250 ease-out",
+          "max-w-[390px] mx-auto px-4 sm:px-[21px] pb-10 min-h-screen relative touch-pan-y bottom-content transition-[opacity,transform] duration-250 ease-out",
           state.settings.layoutWeatherDetail === 'compact'
-            ? "pt-[calc(env(safe-area-inset-top,0px)+16px)]"
+            ? "pt-[max(24px,env(safe-area-inset-top,0px))]"
             : "pt-[calc(env(safe-area-inset-top,0px)+56px)]",
           isAnyModalOpen ? "pointer-events-none" : ""
         )}

@@ -74,17 +74,17 @@ export default function WeatherHero({
 
   if (settings.layoutWeatherDetail === 'compact') {
     return (
-      <div className="flex flex-col w-full py-4 mb-0 font-sans select-none overflow-hidden relative">
-        {/* Top Header Row — city name centred, both action buttons pinned to the right */}
-        <div className="relative flex items-center justify-end w-full mb-2 z-40 min-h-11">
-          {/* Location Trigger (centred between the two buttons) */}
+      <div className="flex flex-col w-full pb-4 mb-0 font-sans select-none overflow-hidden relative">
+        {/* Top Header Row — city name left, both action buttons right */}
+        <div className="flex items-center justify-between w-full mb-2 relative z-40">
+          {/* Location Trigger */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               Haptic.medium(settings.hapticEnabled);
               onOpenCityManager?.();
             }}
-            className="absolute left-1/2 -translate-x-1/2 max-w-[54%] flex items-center gap-1.5 focus:outline-none cursor-pointer group active:scale-[0.97] transition-all duration-150 z-50 pointer-events-auto"
+            className="flex items-center gap-1.5 min-w-0 focus:outline-none cursor-pointer group active:scale-[0.97] transition-all duration-150 relative z-50 pointer-events-auto"
             style={{ touchAction: 'manipulation' }}
           >
             {location?.isCurrentLocation && (
@@ -105,7 +105,7 @@ export default function WeatherHero({
                 Haptic.medium(settings.hapticEnabled);
                 onOpenRadarMap?.();
               }}
-              className="w-11 h-11 relative pointer-events-auto bg-app-surface border border-app-border flex items-center justify-center rounded-full active:scale-[0.95] hover:bg-app-surface/80 hover:border-app-border/80 transition-all select-none cursor-pointer"
+              className="w-12 h-12 relative pointer-events-auto bg-app-surface border border-app-border flex items-center justify-center rounded-full active:scale-[0.95] hover:bg-app-surface/80 hover:border-app-border/80 transition-all select-none cursor-pointer"
               style={{ touchAction: 'manipulation' }}
             >
               <Icons.Map className="w-5 h-5 text-app-text" strokeWidth={2} />
@@ -118,7 +118,7 @@ export default function WeatherHero({
                 Haptic.medium(settings.hapticEnabled);
                 onOpenSettings?.();
               }}
-              className="w-11 h-11 relative pointer-events-auto bg-app-surface border border-app-border flex items-center justify-center rounded-full active:scale-[0.95] hover:bg-app-surface/80 hover:border-app-border/80 transition-all select-none cursor-pointer"
+              className="w-12 h-12 relative pointer-events-auto bg-app-surface border border-app-border flex items-center justify-center rounded-full active:scale-[0.95] hover:bg-app-surface/80 hover:border-app-border/80 transition-all select-none cursor-pointer"
               style={{ touchAction: 'manipulation' }}
             >
               <Icons.Settings2 className="w-5 h-5 text-app-text" strokeWidth={2} />

@@ -12,7 +12,7 @@ import type { AqiSource, AqiSourceId } from './types';
 export const AQI_SOURCES: AqiSource[] = [
   {
     id: 'cams_global_us',
-    name: 'CAMS Global · US AQI',
+    name: 'CAMS Global',
     descriptionKey: 'aqi.cams_global_us.detail',
     family: 'open-meteo',
     coverage: 'global',
@@ -21,7 +21,7 @@ export const AQI_SOURCES: AqiSource[] = [
   },
   {
     id: 'cams_global_eu',
-    name: 'CAMS Global · European AQI',
+    name: 'CAMS Global',
     descriptionKey: 'aqi.cams_global_eu.detail',
     family: 'open-meteo',
     coverage: 'global',
@@ -30,7 +30,7 @@ export const AQI_SOURCES: AqiSource[] = [
   },
   {
     id: 'cams_europe_eu',
-    name: 'CAMS Europe · European AQI',
+    name: 'CAMS Europe',
     descriptionKey: 'aqi.cams_europe_eu.detail',
     family: 'open-meteo',
     coverage: 'europe',
@@ -39,7 +39,7 @@ export const AQI_SOURCES: AqiSource[] = [
   },
   {
     id: 'atmos_us',
-    name: 'atmos.today · US AQI',
+    name: 'atmos.today',
     descriptionKey: 'aqi.atmos_us.detail',
     family: 'atmos',
     coverage: 'cities',
@@ -47,7 +47,7 @@ export const AQI_SOURCES: AqiSource[] = [
   },
   {
     id: 'waqi_us',
-    name: 'WAQI Stations · US AQI',
+    name: 'WAQI',
     descriptionKey: 'aqi.waqi_us.detail',
     family: 'waqi',
     coverage: 'cities',

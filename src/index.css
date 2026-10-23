@@ -1,6 +1,26 @@
 @import "tailwindcss";
 
-/* Self-hosted so first paint never waits on a font CDN. One variable file covers 200–600. */
+/* Product Sans stays the primary face (that is what the app has always rendered). It is
+   pulled from the same CDN the app used before, but with font-display: swap so text is never
+   invisible, and only the two weights are declared: exactly like the old stylesheet, 500
+   resolves to 400 and 600 resolves to 700. Declaring a real 500/600 is what made everything
+   look thinner. */
+@font-face {
+  font-family: 'Product Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('https://fonts.cdnfonts.com/s/14955/ProductSans-Regular.woff') format('woff');
+}
+@font-face {
+  font-family: 'Product Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('https://fonts.cdnfonts.com/s/14955/ProductSans-Bold.woff') format('woff');
+}
+
+/* Self-hosted fallback: paints instantly while Product Sans is in flight. */
 @font-face {
   font-family: 'Plus Jakarta Sans';
   font-style: normal;

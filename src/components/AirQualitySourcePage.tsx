@@ -5,7 +5,7 @@ import { Icons } from './WeatherIcons';
 import { Haptic } from '../lib/haptics';
 import { useTranslatedText } from '../lib/translations';
 import { AQI_SOURCES, DEFAULT_AQI_SOURCE_ID, getAqiSource } from '../services/aqi/registry';
-import { AQI_SCALE_LABEL } from '../services/aqi/scale';
+import { AQI_SCALE_SHORT } from '../services/aqi/scale';
 import type { AqiPreview, AqiSourceId, AqiSourceFamily } from '../services/aqi/types';
 import { fetchAqiPreviews, getCachedAqiPreviews, emptyAqiPreviewMap, type AqiPreviewMap } from '../services/aqi/preview';
 
@@ -37,11 +37,13 @@ function AqiRow({
 }) {
   const source = getAqiSource(sourceId);
   const hasValue = !!preview && !preview.isUnavailable && preview.aqi != null;
+  const index = preview?.index ?? source.index;
+  const badge = AQI_SCALE_SHORT[index];
 
-  const condition = hasValue
-    ? `${preview?.category ?? '—'} · ${AQI_SCALE_LABEL[preview!.index]}`
+  const caption = hasValue
+    ? preview?.category ?? '—'
     : loading && !preview
-    ? '…'
+    ? ''
     : preview?.reason ?? 'Unavailable';
 
   return (
@@ -49,66 +51,49 @@ function AqiRow({
       type="button"
       data-selected={selected ? 'true' : 'false'}
       onClick={() => onSelect(sourceId)}
-      className={`w-full flex items-center justify-between gap-4 py-5 px-5 text-left transition-all duration-200 active:bg-app-text/[0.04] ${
+      className={`relative w-full flex items-center gap-3.5 py-4 px-5 text-left transition-all duration-200 active:bg-app-text/[0.04] ${
         selected ? 'bg-app-text/[0.03]' : 'hover:bg-app-text/[0.01]'
       }`}
     >
-      <div className="flex items-center gap-3.5 min-w-0 flex-1">
-        <div className="w-10 h-10 rounded-full bg-app-text/[0.04] border border-app-border flex items-center justify-center text-app-text-dim shrink-0">
-          {hasValue && preview?.color ? (
-            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: preview.color }} />
-          ) : loading && !preview ? (
-            <div className="w-[18px] h-[18px] rounded-full bg-app-text/10 animate-pulse" />
-          ) : (
-            <Icons.Wind className="w-[18px] h-[18px]" strokeWidth={1.8} />
-          )}
-        </div>
+      {/* Selection tick sits on the row edge so it never steals width from the name */}
+      {selected && (
+        <Check className="absolute right-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-app-text" strokeWidth={2.6} />
+      )}
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 min-w-0">
-            <h4 className="text-[15.5px] font-semibold text-app-text tracking-tight leading-tight truncate">
-              {source.name}
-            </h4>
-          </div>
-          <p className="text-[13px] text-app-text-dim mt-1.5 leading-snug truncate">
-            {loading && !preview ? (
-              <span className="block h-3 w-24 rounded-full bg-app-text/10 animate-pulse" />
-            ) : (
-              condition
-            )}
-          </p>
-          {hasValue && preview?.place ? (
-            <p className="text-[11.5px] text-app-text-dim opacity-60 mt-0.5 leading-snug truncate">
-              {preview.place}
-            </p>
-          ) : null}
-        </div>
+      <div className="w-10 h-10 rounded-full bg-app-text/[0.04] border border-app-border flex items-center justify-center text-app-text-dim shrink-0">
+        {hasValue && preview?.color ? (
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: preview.color }} />
+        ) : loading && !preview ? (
+          <div className="w-[18px] h-[18px] rounded-full bg-app-text/10 animate-pulse" />
+        ) : (
+          <Icons.Wind className="w-[18px] h-[18px]" strokeWidth={1.8} />
+        )}
       </div>
 
-      <div className="flex items-center gap-2.5 shrink-0">
-        <div className="text-right">
-          {loading && !preview ? (
-            <div className="flex flex-col items-end gap-1.5">
-              <span className="block h-4 w-9 rounded-full bg-app-text/10 animate-pulse" />
-              <span className="block h-2.5 w-12 rounded-full bg-app-text/[0.07] animate-pulse" />
-            </div>
-          ) : (
-            <>
-              <p className="text-[17px] font-semibold text-app-text tracking-tight tabular-nums leading-none">
-                {hasValue ? preview!.aqi : '—'}
-              </p>
-              <p className="text-[11.5px] text-app-text-dim tabular-nums mt-1.5 leading-none">
-                {hasValue
-                  ? `${preview?.pm2_5 != null ? `PM2.5 ${Math.round(preview.pm2_5)} · ` : ''}${preview!.aqi} / ${preview!.scaleMax}`
-                  : ''}
-              </p>
-            </>
-          )}
+      <div className="min-w-0 flex-1 flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+          <h4 className="text-[15.5px] font-semibold text-app-text tracking-tight leading-tight truncate">
+            {source.name}
+          </h4>
+          <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded-full border border-app-border bg-app-text/[0.04] text-app-text-dim leading-none">
+            {badge}
+          </span>
         </div>
+        {loading && !preview ? (
+          <span className="block h-3 w-20 rounded-full bg-app-text/10 animate-pulse" />
+        ) : (
+          <p className="text-[12.5px] text-app-text-dim leading-snug line-clamp-2">{caption}</p>
+        )}
+      </div>
 
-        <div className="w-[18px] flex items-center justify-center shrink-0">
-          {selected && <Check className="w-[18px] h-[18px] text-app-text" strokeWidth={2.6} />}
-        </div>
+      <div className="w-[44px] shrink-0 text-right pr-5">
+        {loading && !preview ? (
+          <span className="block h-4 w-8 rounded-full bg-app-text/10 animate-pulse ml-auto" />
+        ) : (
+          <p className="text-[19px] font-semibold text-app-text tracking-tight tabular-nums leading-none">
+            {hasValue ? preview!.aqi : '—'}
+          </p>
+        )}
       </div>
     </button>
   );

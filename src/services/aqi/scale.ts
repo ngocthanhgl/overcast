@@ -58,6 +58,13 @@ export const AQI_SCALE_LABEL: Record<AqiIndex, string> = {
   cpcb: 'AQI (India)',
 };
 
+/** Compact badge text used in the source list. */
+export const AQI_SCALE_SHORT: Record<AqiIndex, string> = {
+  us_epa: 'US AQI',
+  eea: 'EAQI',
+  cpcb: 'NAQI',
+};
+
 export function bandsFor(index: AqiIndex): AqiBand[] {
   return BANDS[index] ?? US_EPA_BANDS;
 }
