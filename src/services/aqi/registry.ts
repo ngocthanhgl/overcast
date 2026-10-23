@@ -17,6 +17,7 @@ export const AQI_SOURCES: AqiSource[] = [
     family: 'open-meteo',
     coverage: 'global',
     index: 'us_epa',
+    gridNote: 'Interpolated grid · 45 km',
     domains: 'cams_global',
   },
   {
@@ -26,6 +27,7 @@ export const AQI_SOURCES: AqiSource[] = [
     family: 'open-meteo',
     coverage: 'global',
     index: 'eea',
+    gridNote: 'Interpolated grid · 45 km',
     domains: 'cams_global',
   },
   {
@@ -35,6 +37,7 @@ export const AQI_SOURCES: AqiSource[] = [
     family: 'open-meteo',
     coverage: 'europe',
     index: 'eea',
+    gridNote: 'Interpolated grid · 11 km',
     domains: 'cams_europe',
   },
   {

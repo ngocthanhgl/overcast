@@ -3488,6 +3488,7 @@ export default function App() {
             <SearchBar 
               hapticEnabled={state.settings.hapticEnabled}
               lang={state.settings.language || 'en'}
+              nearLocation={activeLocation ?? null}
               onSelect={(loc) => {
                 Haptic.success(state.settings.hapticEnabled);
                 disableAllAnimations();

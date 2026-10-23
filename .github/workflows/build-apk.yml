@@ -63,7 +63,7 @@ jobs:
 
       - name: Scaffold Capacitor Android shell
         run: |
-          npm i --no-save @capacitor/cli@6 @capacitor/android@6 @capacitor/assets @capacitor/splash-screen@6 @capacitor/geolocation@6
+          npm i --no-save @capacitor/cli@6 @capacitor/android@6 @capacitor/assets @capacitor/geolocation@6
           cat > capacitor.config.json <<'JSON'
           {
             "appId": "app.overcast.pwa",
@@ -72,10 +72,9 @@ jobs:
             "server": { "androidScheme": "https" },
             "plugins": {
               "SplashScreen": {
-                "launchAutoHide": false,
+                "launchAutoHide": true,
                 "launchShowDuration": 0,
                 "backgroundColor": "#ffffff",
-                "androidSplashResourceName": "splash",
                 "showSpinner": false
               }
             }
@@ -83,6 +82,35 @@ jobs:
           JSON
           npx cap add android
           npx cap sync android
+
+      # No splash art: the launch window stays a flat colour until the WebView paints.
+      # Capacitor's theme points windowBackground at the generated splash bitmap, so the
+      # splash drawables are dropped and the theme repointed at a plain colour.
+      - name: Remove splash art
+        run: |
+          rm -f android/app/src/main/res/drawable*/splash.png
+          mkdir -p android/app/src/main/res/values android/app/src/main/res/values-v31
+          cat > android/app/src/main/res/values/splash_background.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+            <color name="splash_background">#ffffff</color>
+          </resources>
+          XML
+          sed -i 's#@drawable/splash#@color/splash_background#g' android/app/src/main/res/values/styles.xml
+          if [ -f android/app/src/main/res/values-v31/styles.xml ]; then
+            sed -i 's#@drawable/splash#@color/splash_background#g' android/app/src/main/res/values-v31/styles.xml
+          fi
+          cat > android/app/src/main/res/values-v31/styles.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+            <!-- Android 12+ system splash: flat colour, no icon, no animation. -->
+            <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+              <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+              <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+              <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+            </style>
+          </resources>
+          XML
 
       - name: Generate app icon and splash screen
         run: npx capacitor-assets generate --android --iconBackgroundColor '#ffffff' --splashBackgroundColor '#ffffff'

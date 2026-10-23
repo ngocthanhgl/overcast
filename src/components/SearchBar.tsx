@@ -15,9 +15,11 @@ interface SearchBarProps {
   onClose: () => void;
   hapticEnabled: boolean;
   lang?: string;
+  /** City the user is currently viewing; used to rank nearby matches first. */
+  nearLocation?: Location | null;
 }
 
-export default function SearchBar({ onSelect, onClose, hapticEnabled, lang = 'en' }: SearchBarProps) {
+export default function SearchBar({ onSelect, onClose, hapticEnabled, lang = 'en', nearLocation }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [rawResults, setRawResults] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -41,11 +43,15 @@ export default function SearchBar({ onSelect, onClose, hapticEnabled, lang = 'en
     });
   }, [rawResults]);
 
-  // Derived results using Fuse.js if query is present, otherwise raw
+  // Derived results: Fuse only filters, the provider order is preserved so the server-side
+  // ranking (exact name → prefix → distance to the city you are looking at) always wins.
   const results = useMemo(() => {
     if (!query || rawResults.length === 0) return rawResults;
     const fuseResults = fuse.search(query);
-    return fuseResults.length > 0 ? fuseResults.map(r => r.item) : rawResults;
+    if (fuseResults.length === 0) return rawResults;
+    return fuseResults
+      .map(r => r.item)
+      .sort((a, b) => rawResults.indexOf(a) - rawResults.indexOf(b));
   }, [fuse, rawResults, query]);
 
   const debouncedSearch = useRef(
@@ -57,7 +63,10 @@ export default function SearchBar({ onSelect, onClose, hapticEnabled, lang = 'en
       }
       setIsLoading(true);
       try {
-        const locations = await searchLocations(q);
+        const locations = await searchLocations(q, {
+          language: lang,
+          near: nearLocation ? { lat: nearLocation.latitude, lon: nearLocation.longitude } : undefined,
+        });
         setRawResults(locations);
       } catch (error) {
         console.error('Search failed', error);
@@ -199,7 +208,7 @@ export default function SearchBar({ onSelect, onClose, hapticEnabled, lang = 'en
                       )}
                     </div>
                     <span className="text-[13px] text-app-text-dim truncate">
-                      {loc.admin1 ? `${loc.admin1}, ` : ''}{loc.country}
+                      {[loc.admin2, loc.admin1, loc.country].filter(Boolean).join(', ')}
                     </span>
                   </div>
                   <Icons.Plus className="w-5 h-5 text-app-text-dim/20" />

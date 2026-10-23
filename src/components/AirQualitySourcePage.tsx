@@ -84,6 +84,17 @@ function AqiRow({
         ) : (
           <p className="text-[12.5px] text-app-text-dim leading-snug line-clamp-2">{caption}</p>
         )}
+        {hasValue && preview?.place ? (
+          <p className="flex items-start gap-1 text-[11.5px] text-app-text-dim/70 leading-snug">
+            <Icons.MapPin className="w-3 h-3 mt-[1px] shrink-0" strokeWidth={2} />
+            <span className="line-clamp-2">{preview.place}</span>
+          </p>
+        ) : source.gridNote ? (
+          <p className="flex items-center gap-1 text-[11.5px] text-app-text-dim/60 leading-snug">
+            <Icons.Info className="w-3 h-3 shrink-0" strokeWidth={2} />
+            <span>{source.gridNote}</span>
+          </p>
+        ) : null}
       </div>
 
       <div className="w-[44px] shrink-0 text-right pr-5">

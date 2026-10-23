@@ -3,7 +3,6 @@ import {createRoot} from 'react-dom/client';
 import {Capacitor} from '@capacitor/core';
 import {StatusBar, Style} from '@capacitor/status-bar';
 import {App as CapacitorApp} from '@capacitor/app';
-import {SplashScreen} from '@capacitor/splash-screen';
 import App from './App.tsx';
 import './index.css';
 import {ErrorBoundary} from './components/ErrorBoundary.tsx';
@@ -165,22 +164,9 @@ const whenIdle = (cb: () => void) => {
 
 window.addEventListener('load', () => whenIdle(loadOneSignalSdk), { once: true });
 
-/**
- * The native splash is held (launchAutoHide: false) until React has painted its first frame.
- * The inline skeleton in index.html is a pixel match for the splash art, so this handoff is
- * invisible and the later skeleton → content fade is the only visible transition.
- */
-function hideSplashAfterFirstPaint() {
-  if (!Capacitor.isNativePlatform()) return;
-  const hide = () => {
-    SplashScreen.hide({ fadeOutDuration: 180 }).catch(() => { /* already hidden */ });
-  };
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => requestAnimationFrame(hide));
-  } else {
-    window.setTimeout(hide, 0);
-  }
-}
+// No native splash screen: the Android launch window is a flat colour and the inline overlay
+// in index.html covers the first paint, so React mounts straight away (see the boot cross-fade
+// in App.tsx).
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -189,5 +175,3 @@ createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </StrictMode>,
 );
-
-hideSplashAfterFirstPaint();

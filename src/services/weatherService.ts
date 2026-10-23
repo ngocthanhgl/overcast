@@ -1099,28 +1099,219 @@ export function simplifyCountryName(country: string): string {
   return name;
 }
 
-export async function searchLocations(query: string): Promise<Location[]> {
-  if (query.length < 2) return [];
+/**
+ * Photon only accepts a handful of languages; asking for anything else returns HTTP 400.
+ * This is what silently killed Photon for Vietnamese users before.
+ */
+const PHOTON_LANGS = new Set(['de', 'en', 'fr', 'it']);
+
+function photonLang(code?: string): string | undefined {
+  const key = (code || '').toLowerCase().slice(0, 2);
+  return PHOTON_LANGS.has(key) ? key : undefined;
+}
+
+const GEOCODE_TTL_MS = 24 * 60 * 60 * 1000;
+const GEOCODE_STORAGE_KEY = 'app_geocode_cache';
+
+interface GeocodeCacheEntry {
+  ts: number;
+  data: Location[];
+}
+
+const geocodeMemory = new Map<string, GeocodeCacheEntry>();
+const geocodeInFlight = new Map<string, Promise<Location[]>>();
+
+function geocodeKey(query: string, language?: string): string {
+  return `${(language || 'en').toLowerCase().slice(0, 2)}:${query.trim().toLowerCase()}`;
+}
+
+function readGeocodeStorage(): Record<string, GeocodeCacheEntry> {
+  if (typeof localStorage === 'undefined') return {};
   try {
-    console.log('[RateLimiter] Running Open-Meteo Geocoding');
-    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=10`;
-    const data = await safeFetch(url);
-    if (!data) return [];
-    const results = data.results || [];
-    return results.map((item: any, idx: number) => ({
-      id: item.id || (Date.now() + idx),
-      name: item.name,
-      latitude: item.latitude,
-      longitude: item.longitude,
-      country: simplifyCountryName(item.country || ""),
-      admin1: simplifyAdminName(item.admin1 || "", item.country || ""),
-      admin2: item.admin2,
-      timezone: item.timezone || 'auto',
-    }));
-  } catch (err) {
-    console.warn('Location search failed:', err);
-    return [];
+    const raw = localStorage.getItem(GEOCODE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
   }
+}
+
+function writeGeocodeStorage(key: string, entry: GeocodeCacheEntry) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const all = readGeocodeStorage();
+    all[key] = entry;
+    localStorage.setItem(GEOCODE_STORAGE_KEY, JSON.stringify(all));
+  } catch {
+    /* storage full: the memory cache still works */
+  }
+}
+
+function haversineKm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLon = toRad(b.longitude - a.longitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+/** Diacritic-insensitive, punctuation-free key used for matching and dedupe. */
+function normalizeName(value: string): string {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** GeoNames-backed, ranked by population. Fast and precise for real city names. */
+async function openMeteoSearch(query: string, language?: string): Promise<Location[]> {
+  const langParam = language ? `&language=${encodeURIComponent(language.toLowerCase().slice(0, 2))}` : '';
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=10${langParam}`;
+  const data = await safeFetch(url);
+  const results = data?.results || [];
+  return results.map((item: any, idx: number) => ({
+    id: item.id || (Date.now() + idx),
+    name: item.name,
+    latitude: item.latitude,
+    longitude: item.longitude,
+    country: simplifyCountryName(item.country || ''),
+    admin1: simplifyAdminName(item.admin1 || '', item.country || ''),
+    admin2: item.admin2,
+    timezone: item.timezone || 'auto',
+  })) as Location[];
+}
+
+/** OpenStreetMap via Photon: better for wards, communes, suburbs and local spellings. */
+async function photonSearch(query: string, language?: string): Promise<Location[]> {
+  const lang = photonLang(language);
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=10${lang ? `&lang=${lang}` : ''}`;
+  const response = await fetchWithTimeout(url, {}, 5000, 0);
+  if (!response?.ok) return [];
+  const data = await response.json();
+  const features = data?.features || [];
+  return features
+    .map((feature: any, idx: number) => {
+      const props = feature?.properties || {};
+      const coords = feature?.geometry?.coordinates || [];
+      return {
+        id: Number(props.osm_id) || Date.now() + idx,
+        name: props.name || props.city || props.district || props.locality || props.street || '',
+        latitude: Number(coords[1]),
+        longitude: Number(coords[0]),
+        country: simplifyCountryName(props.country || ''),
+        admin1: simplifyAdminName(props.state || '', props.country || ''),
+        admin2: props.county || props.district || undefined,
+        timezone: 'auto',
+      } as Location;
+    })
+    .filter((loc: Location) => loc.name && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude));
+}
+
+/** Last resort only: Nominatim's usage policy is strict, so never call it first. */
+async function nominatimSearch(query: string): Promise<Location[]> {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`;
+  const response = await fetchWithTimeout(url, { headers: { 'User-Agent': 'NimbusWeatherApp/1.0' } }, 5000, 0);
+  if (!response?.ok) return [];
+  const data = await response.json();
+  return (data || [])
+    .map((item: any, idx: number) => {
+      const addr = item.address || {};
+      return {
+        id: Date.now() + idx,
+        name: item.name || addr.city || addr.town || addr.village || addr.county || String(item.display_name || '').split(',')[0],
+        latitude: Number(item.lat),
+        longitude: Number(item.lon),
+        country: simplifyCountryName(addr.country || ''),
+        admin1: simplifyAdminName(addr.state || ''),
+        admin2: addr.county || undefined,
+        timezone: 'auto',
+      } as Location;
+    })
+    .filter((loc: Location) => loc.name && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude));
+}
+
+/**
+ * Merges providers, drops the same place twice, then ranks: exact name, prefix, contains,
+ * and — most importantly — distance to the city the user is already looking at, so a village
+ * with the same name 400 km away never wins.
+ */
+function mergeAndRank(lists: Location[][], query: string, near?: { lat: number; lon: number }): Location[] {
+  const wanted = normalizeName(query);
+  const nearPoint = near ? { latitude: near.lat, longitude: near.lon } : undefined;
+  const merged: Location[] = [];
+
+  for (const list of lists) {
+    for (const loc of list) {
+      const duplicate = merged.some(
+        (seen) => normalizeName(seen.name) === normalizeName(loc.name) && haversineKm(seen, loc) < 1
+      );
+      if (!duplicate) merged.push(loc);
+    }
+  }
+
+  return merged
+    .map((loc, index) => {
+      const name = normalizeName(loc.name);
+      const nameScore = name === wanted ? 0 : name.startsWith(wanted) ? 1 : name.includes(wanted) ? 2 : 3;
+      const distance = nearPoint ? haversineKm(nearPoint, loc) : Number.POSITIVE_INFINITY;
+      return { loc, index, nameScore, distance };
+    })
+    .sort((a, b) => a.nameScore - b.nameScore || a.distance - b.distance || a.index - b.index)
+    .map((entry) => entry.loc)
+    .slice(0, 12);
+}
+
+/**
+ * Location search. Open-Meteo (GeoNames) is primary, Photon (OSM) fills in wards and local
+ * names, Nominatim is only used when both come back empty. Results are cached for a day.
+ */
+export async function searchLocations(
+  query: string,
+  opts: { language?: string; near?: { lat: number; lon: number } } = {}
+): Promise<Location[]> {
+  const trimmed = (query || '').trim();
+  if (trimmed.length < 2) return [];
+
+  const key = geocodeKey(trimmed, opts.language);
+  const cached = geocodeMemory.get(key);
+  if (cached && Date.now() - cached.ts < GEOCODE_TTL_MS) return cached.data;
+
+  const stored = readGeocodeStorage()[key];
+  if (stored && Date.now() - stored.ts < GEOCODE_TTL_MS) {
+    geocodeMemory.set(key, stored);
+    return stored.data;
+  }
+
+  const pending = geocodeInFlight.get(key);
+  if (pending) return pending;
+
+  const request = (async () => {
+    const [openMeteo, photon] = await Promise.all([
+      openMeteoSearch(trimmed, opts.language).catch(() => [] as Location[]),
+      photonSearch(trimmed, opts.language).catch(() => [] as Location[]),
+    ]);
+
+    let results = mergeAndRank([openMeteo, photon], trimmed, opts.near);
+
+    if (results.length === 0) {
+      const nominatim = await nominatimSearch(trimmed).catch(() => [] as Location[]);
+      results = mergeAndRank([nominatim], trimmed, opts.near);
+    }
+
+    const entry: GeocodeCacheEntry = { ts: Date.now(), data: results };
+    geocodeMemory.set(key, entry);
+    writeGeocodeStorage(key, entry);
+    return results;
+  })().finally(() => {
+    geocodeInFlight.delete(key);
+  });
+
+  geocodeInFlight.set(key, request);
+  return request;
 }
 
 export async function fetchIPLocation(): Promise<{ lat: number; lon: number; cityName: string; country: string; timezone: string } | null> {
@@ -1215,7 +1406,7 @@ export async function reverseGeocode(lat: number, lon: number, langCode?: string
   // 1. Primary: Photon by Komoot (Un-rate-limited, open, built on OpenStreetMap, extremely fast & robust)
   try {
     console.log('[PhotonGeocoding] Running Photon Reverse Geocoding with lang:', langKey);
-    const url = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}${langKey !== 'en' ? `&lang=${langKey}` : ''}`;
+    const url = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}${photonLang(langKey) ? `&lang=${photonLang(langKey)}` : ''}`;
     const response = await fetchWithTimeout(url, {}, 4000, 0);
     if (response.ok) {
       const data = await response.json();

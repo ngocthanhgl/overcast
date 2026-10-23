@@ -16,6 +16,8 @@ export interface AqiSource {
   coverage: AqiCoverage;
   /** Index scale this source reports on. */
   index: AqiIndex;
+  /** Shown for model sources, where there is no station: e.g. "Interpolated grid · 45 km". */
+  gridNote?: string;
   /** Open-Meteo `domains` parameter, when applicable. */
   domains?: string;
 }
