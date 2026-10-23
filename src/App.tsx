@@ -3158,7 +3158,7 @@ export default function App() {
       <div
         id="ui-overlay"
         className={cn(
-          "fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] z-[100] pointer-events-none pt-[env(safe-area-inset-top)] transition-all duration-350 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]",
+          "fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] z-[100] pointer-events-none pt-[max(24px,env(safe-area-inset-top,0px))] transition-all duration-350 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]",
           isAnyModalOpen ? "opacity-0 pointer-events-none scale-[0.96]" : "opacity-100"
         )}
       >
@@ -3570,8 +3570,8 @@ export default function App() {
         className={cn(
           "max-w-[390px] mx-auto px-4 sm:px-[21px] pb-10 min-h-screen relative touch-pan-y bottom-content transition-[opacity,transform,padding-top] duration-250 ease-out",
           state.settings.layoutWeatherDetail === 'compact'
-            ? "pt-[calc(env(safe-area-inset-top,24px)+4px)]"
-            : "pt-[calc(env(safe-area-inset-top,24px)+60px)]",
+            ? "pt-[calc(env(safe-area-inset-top,0px)+16px)]"
+            : "pt-[calc(env(safe-area-inset-top,0px)+56px)]",
           isAnyModalOpen ? "pointer-events-none" : ""
         )}
       >
