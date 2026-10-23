@@ -75,22 +75,22 @@ export default function WeatherHero({
   if (settings.layoutWeatherDetail === 'compact') {
     return (
       <div className="flex flex-col w-full py-4 mb-0 font-sans select-none overflow-hidden relative">
-        {/* Top Header Row within the Hero Card */}
-        <div className="flex items-center justify-between w-full mb-2 relative z-40">
-          {/* Location Trigger */}
+        {/* Top Header Row — city name centred, both action buttons pinned to the right */}
+        <div className="relative flex items-center justify-end w-full mb-2 z-40 min-h-11">
+          {/* Location Trigger (centred between the two buttons) */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               Haptic.medium(settings.hapticEnabled);
               onOpenCityManager?.();
             }}
-            className="flex items-center gap-1.5 focus:outline-none cursor-pointer group active:scale-[0.97] transition-all duration-150 relative z-50 pointer-events-auto"
+            className="absolute left-1/2 -translate-x-1/2 max-w-[54%] flex items-center gap-1.5 focus:outline-none cursor-pointer group active:scale-[0.97] transition-all duration-150 z-50 pointer-events-auto"
             style={{ touchAction: 'manipulation' }}
           >
             {location?.isCurrentLocation && (
               <Icons.MapPin className="w-5 h-5 text-app-text shrink-0" strokeWidth={2.5} />
             )}
-            <span className="text-[16px] font-black text-app-text group-hover:text-app-text/80 transition-colors tracking-tight">
+            <span className="text-[16px] font-black text-app-text group-hover:text-app-text/80 transition-colors tracking-tight truncate">
               <Translate text={location.name} lang={settings.language || 'en'} />
             </span>
             <Icons.ChevronDown className="w-4 h-4 text-app-text/60 group-hover:text-app-text transition-colors shrink-0" strokeWidth={2.5} />

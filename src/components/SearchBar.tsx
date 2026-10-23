@@ -7,6 +7,7 @@ import debounce from 'lodash.debounce';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Haptic } from '../lib/haptics';
+import { getCurrentPositionOnce, locationPermissionState, requestLocationAccess } from '../lib/geolocation';
 import Fuse from 'fuse.js';
 
 interface SearchBarProps {
@@ -225,24 +226,21 @@ export default function SearchBar({ onSelect, onClose, hapticEnabled, lang = 'en
                     setGeoError(null);
                     setIsLoading(true);
 
-                    // 1. Check if permission has already been explicitly denied
-                    if (typeof navigator !== 'undefined' && navigator.permissions && navigator.permissions.query) {
-                      try {
-                        const result = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
-                        if (result.state === 'denied') {
-                          setGeoError("Location access is denied");
-                          setIsLoading(false);
-                          return;
-                        }
-                      } catch (err) {
-                        console.warn("Permissions query failed in SearchBar:", err);
+                    // 1. Ask the OS for access first (native shows the system dialog)
+                    const state = await locationPermissionState();
+                    if (state !== 'granted') {
+                      const granted = await requestLocationAccess();
+                      if (!granted) {
+                        setGeoError("Location access is denied");
+                        setIsLoading(false);
+                        return;
                       }
                     }
 
-                    if (navigator.geolocation) {
+                    {
                       let resolvedOrFailed = false;
 
-                      // Backup timer: if GPS takes > 5.5 seconds, timeout and report error
+                      // Backup timer: if GPS takes > 12 seconds, timeout and report error
                       const gpsTimerToken = setTimeout(() => {
                         if (!resolvedOrFailed) {
                           resolvedOrFailed = true;
@@ -251,8 +249,9 @@ export default function SearchBar({ onSelect, onClose, hapticEnabled, lang = 'en
                         }
                       }, 12000);
 
-                      navigator.geolocation.getCurrentPosition(
-                        async (pos) => {
+                      getCurrentPositionOnce({ timeout: 10000, enableHighAccuracy: true })
+                        .then(async (position) => {
+                          const pos = { coords: position };
                           if (resolvedOrFailed) return;
                           resolvedOrFailed = true;
                           clearTimeout(gpsTimerToken);
@@ -289,21 +288,16 @@ export default function SearchBar({ onSelect, onClose, hapticEnabled, lang = 'en
                           } finally {
                             setIsLoading(false);
                           }
-                        },
-                        async (err) => {
+                        })
+                        .catch(async (err) => {
                           if (resolvedOrFailed) return;
                           resolvedOrFailed = true;
                           clearTimeout(gpsTimerToken);
-                          
-                          console.warn("GPS error encountered in search page:", err.message);
+
+                          console.warn("GPS error encountered in search page:", err?.message || err);
                           setIsLoading(false);
                           setGeoError("Location access is denied");
-                        },
-                        { timeout: 10000, enableHighAccuracy: true }
-                      );
-                    } else {
-                      setIsLoading(false);
-                      setGeoError("Location access is denied");
+                        });
                     }
                   }}
                   className="w-full flex items-center gap-4 p-4 text-left active:bg-app-text/5 bg-app-surface border border-app-border rounded-2xl transition-all"

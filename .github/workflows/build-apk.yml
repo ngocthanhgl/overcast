@@ -63,7 +63,7 @@ jobs:
 
       - name: Scaffold Capacitor Android shell
         run: |
-          npm i --no-save @capacitor/cli@6 @capacitor/android@6 @capacitor/assets @capacitor/splash-screen@6
+          npm i --no-save @capacitor/cli@6 @capacitor/android@6 @capacitor/assets @capacitor/splash-screen@6 @capacitor/geolocation@6
           cat > capacitor.config.json <<'JSON'
           {
             "appId": "app.overcast.pwa",

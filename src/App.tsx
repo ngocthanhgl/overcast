@@ -11,6 +11,7 @@ import { clearAqiPreviewCache } from './services/aqi/preview';
 import type { ProviderId } from './services/providers/types';
 import type { AqiSourceId } from './services/aqi/types';
 import { initGestures } from './lib/gestures';
+import { getCurrentPositionOnce, isPermissionDenied, locationPermissionState, requestLocationAccess } from './lib/geolocation';
 import WeatherSkeleton from './components/WeatherSkeleton';
 import SearchBar from './components/SearchBar';
 import WeatherHero from './components/WeatherHero';
@@ -1026,22 +1027,21 @@ export default function App() {
 
     LocationState.isLoading = true;
 
-    // Check if permission is already explicitly denied
-    if (typeof navigator !== 'undefined' && navigator.permissions && navigator.permissions.query) {
-      try {
-        const result = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
-        if (result.state === 'denied') {
-          console.warn("[fetchCurrentLocation] Geolocation permission is denied. Not adding any city.");
-          LocationState.isLoading = false;
-          hideLocationIndicator();
-          hideMinimalIndicator();
-          if (!isBackground) {
-            setLocationPermissionError(true);
-          }
-          return null;
+    // Ask the OS first. On Android the WebView reports `denied` for geolocation until the app
+    // holds the runtime permission, and the only way to get it is to trigger the system dialog.
+    // Treating that `denied` as final is what made GPS look broken.
+    const permissionState = await locationPermissionState();
+    if (permissionState !== 'granted') {
+      const granted = await requestLocationAccess();
+      if (!granted) {
+        console.warn("[fetchCurrentLocation] Location access refused. Not adding any city.");
+        LocationState.isLoading = false;
+        hideLocationIndicator();
+        hideMinimalIndicator();
+        if (!isBackground) {
+          setLocationPermissionError(true);
         }
-      } catch (err) {
-        console.warn("Permissions API check failed:", err);
+        return null;
       }
     }
 
@@ -1122,8 +1122,13 @@ export default function App() {
         }
       }, 12000);
 
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
+      getCurrentPositionOnce({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000
+      })
+        .then(async (coords) => {
+          const pos = { coords };
           if (resolvedOrFailed) return;
           resolvedOrFailed = true;
           clearTimeout(gpsTimeoutToken);
@@ -1185,16 +1190,16 @@ export default function App() {
             lon: longitude, 
             cityName 
           });
-        },
-        async (err) => {
+        })
+        .catch(async (err) => {
           if (resolvedOrFailed) return;
           resolvedOrFailed = true;
           clearTimeout(gpsTimeoutToken);
           
-          console.warn("GPS error encountered:", err.message);
+          console.warn("GPS error encountered:", err?.message || err);
           
           // If permission is denied or location is off, DO NOT fall back to IP-based location!
-          if (err.code === err.PERMISSION_DENIED) {
+          if (isPermissionDenied(err)) {
             console.warn("Location permission was explicitly denied. Not adding any city.");
             if (!isBackground) {
               setLocationPermissionError(true);
@@ -1219,27 +1224,12 @@ export default function App() {
             const res = await runIpFallback();
             resolve(res);
           }
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 30000
-        }
-      );
+        });
     });
   };
 
   const isLocationPermissionOn = async (): Promise<boolean> => {
-    if (typeof navigator !== 'undefined' && navigator.permissions && navigator.permissions.query) {
-      try {
-        const result = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
-        return result.state === 'granted';
-      } catch (err) {
-        console.warn("Permissions API query failed:", err);
-        return false;
-      }
-    }
-    return false;
+    return (await locationPermissionState()) === 'granted';
   };
 
   const startLocationRefresh = () => {
