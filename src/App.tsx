@@ -769,28 +769,9 @@ export default function App() {
     hideLocationLoading();
   };
 
-  const showMinimalIndicator = (text: string) => {
-    const bar = document.getElementById("location-status-bar");
-    const spinner = document.getElementById("location-status-spinner");
-    const label = document.getElementById("location-status-text");
-
-    if (!bar || !label) return;
-
-    label.textContent = text;
-
-    if (text === "GETTING LOCATION") {
-      if (spinner) spinner.style.display = "block";
-      label.style.color = "#94a3b8";
-      bar.style.background = "#1e293b";
-    } else if (text === "LOCATION UPDATED") {
-      if (spinner) spinner.style.display = "none";
-      label.style.color = "#4ade80";
-      bar.style.background = "#14532d40";
-    }
-
-    bar.style.height = "28px";
-    const overlay = document.getElementById("ui-overlay");
-    if (overlay) overlay.style.paddingTop = "36px";
+  const showMinimalIndicator = (_text: string) => {
+    // Deliberately silent: the black "GETTING LOCATION / LOCATION UPDATED" bar clashed with the
+    // app. Location still refreshes in the background; nothing is drawn.
   };
 
   const hideMinimalIndicator = () => {
@@ -2261,27 +2242,16 @@ export default function App() {
     if (state.loading && state.locations.length > 0) return;
     hasFiredLoadedEventRef.current = true;
 
-    const el = document.getElementById('app-loading-screen');
-    const startedAt = performance.now();
-    // Keep the overlay up for at least one painted frame plus a floor, so the reveal is a
-    // single cross-fade instead of a flash of a half-painted screen.
-    const MIN_VISIBLE_MS = 240;
+    const root = document.getElementById('root');
 
-    // Two frames = the content underneath has actually painted before we start fading.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      const wait = Math.max(0, MIN_VISIBLE_MS - (performance.now() - startedAt));
-      window.setTimeout(() => {
-        if (el) {
-          el.style.transition = 'opacity 0.22s ease-out';
-          el.style.opacity = '0';
-          window.setTimeout(() => { el.remove(); setBootDone(true); }, 240);
-        } else {
-          setBootDone(true);
-        }
-        console.log('[Median Bridge] App is ready. Dispatching median_app_loaded event.');
-        window.dispatchEvent(new CustomEvent('median_app_loaded'));
-      }, wait);
-    }));
+    // A short timeout rather than requestAnimationFrame: rAF does not run in a hidden tab, and
+    // the reveal must never be able to stall. index.html also has a 4s safety net.
+    window.setTimeout(() => {
+      if (root) root.classList.add('app-ready');
+      setBootDone(true);
+      console.log('[Median Bridge] App is ready. Dispatching median_app_loaded event.');
+      window.dispatchEvent(new CustomEvent('median_app_loaded'));
+    }, 60);
   }, [state.loading, state.locations.length]);
 
   // Service Worker pre-fetching strategy for adjacent cities in the swipe sequence
@@ -3171,37 +3141,6 @@ export default function App() {
           }
         `}</style>
         
-        <div id="location-status-bar" style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 0,
-          overflow: "hidden",
-          background: "#1e293b",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "8px",
-          zIndex: 9999,
-          transition: "height 0.3s ease",
-          fontSize: "11px",
-          letterSpacing: "1.5px",
-          fontWeight: 600,
-          textTransform: "uppercase"
-        }}>
-          <div id="location-status-spinner" style={{
-            width: "12px",
-            height: "12px",
-            border: "1.5px solid #ffffff30",
-            borderTop: "1.5px solid #6366f1",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-            display: "none"
-          }}></div>
-          <span id="location-status-text" style={{ color: "#94a3b8" }}></span>
-        </div>
-
         {state.locations.length > 0 && state.settings.layoutWeatherDetail !== 'compact' && (
           <motion.div 
             className="w-full h-12 relative pointer-events-none"

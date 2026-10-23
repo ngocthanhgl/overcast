@@ -59,17 +59,16 @@
       opacity: 0;
     " aria-hidden="true"></div>
 
-    <!-- Flat first paint: no splash art. Matches the Android launch window colour so the
-         handoff into React is invisible, then App cross-fades it out. -->
-    <div id="app-loading-screen" aria-hidden="true" style="
-      position: fixed;
-      inset: 0;
-      z-index: 99990;
-      background: #ffffff;
-      pointer-events: none;
-    "></div>
-
+    <!-- No splash plate. The Android launch window is the app background colour, and #root
+         fades in (see index.css), so the UI is there immediately, just softened. -->
     <div id="root"></div>
+    <script>
+      // Safety net: if the bundle never mounts, still show the root after 4s.
+      setTimeout(function () {
+        var root = document.getElementById('root');
+        if (root) root.classList.add('app-ready');
+      }, 4000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

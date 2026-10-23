@@ -83,36 +83,63 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      # No splash art: the launch window is a flat colour until the WebView paints. Capacitor's
-      # theme points windowBackground at the generated splash bitmap, so the theme is repointed
-      # here; the bitmaps themselves are deleted after the asset generator runs.
-      - name: Point launch theme at a flat colour
+      # No splash art, no white flash. The launch window uses the colour the web app paints as
+      # its background, and the navigation bar colour is set explicitly in *both* the launch and
+      # the app theme: previously the launch window painted white behind the black system bars,
+      # which is the "white expands over the navigation bar" flicker.
+      - name: Point launch theme at the app background
         run: |
-          mkdir -p android/app/src/main/res/values android/app/src/main/res/values-v31
-          cat > android/app/src/main/res/values/splash_background.xml <<'XML'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-            <color name="splash_background">#ffffff</color>
-          </resources>
-          XML
-          sed -i 's#@drawable/splash#@color/splash_background#g' android/app/src/main/res/values/styles.xml
-          if [ -f android/app/src/main/res/values-v31/styles.xml ]; then
-            sed -i 's#@drawable/splash#@color/splash_background#g' android/app/src/main/res/values-v31/styles.xml
-          fi
-          cat > android/app/src/main/res/values-v31/styles.xml <<'XML'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-            <!-- Android 12+ system splash: flat colour, no icon, no animation. -->
-            <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-              <item name="android:windowSplashScreenBackground">@color/splash_background</item>
-              <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
-              <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
-            </style>
-          </resources>
-          XML
+          python3 - <<'PY'
+          import re, pathlib
+          res = pathlib.Path('android/app/src/main/res')
+          (res / 'values').mkdir(parents=True, exist_ok=True)
+          (res / 'values-v31').mkdir(parents=True, exist_ok=True)
+
+          (res / 'values' / 'splash_background.xml').write_text(
+              '<?xml version="1.0" encoding="utf-8"?>\n'
+              '<resources>\n'
+              '  <color name="splash_background">#dbe4eb</color>\n'
+              '</resources>\n'
+          )
+
+          nav = ('  <item name="android:navigationBarColor">#FF000000</item>\n'
+                 '  <item name="android:statusBarColor">@android:color/transparent</item>\n')
+
+          styles_path = res / 'values' / 'styles.xml'
+          styles = styles_path.read_text().replace('@drawable/splash', '@color/splash_background')
+
+          def add_items(xml, style_name, items):
+              pattern = re.compile(r'(<style name="%s"[^>]*>)(.*?)(</style>)' % re.escape(style_name), re.S)
+              def repl(match):
+                  if 'navigationBarColor' in match.group(2):
+                      return match.group(0)
+                  return match.group(1) + match.group(2) + items + match.group(3)
+              return pattern.sub(repl, xml)
+
+          styles = add_items(styles, 'AppTheme.NoActionBarLaunch', nav)
+          styles = add_items(styles, 'AppTheme.NoActionBar', nav)
+          styles_path.write_text(styles)
+
+          (res / 'values-v31' / 'styles.xml').write_text(
+              '<?xml version="1.0" encoding="utf-8"?>\n'
+              '<resources>\n'
+              '  <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">\n'
+              '    <item name="android:windowSplashScreenBackground">@color/splash_background</item>\n'
+              '    <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>\n'
+              '    <item name="android:navigationBarColor">#FF000000</item>\n'
+              '    <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>\n'
+              '  </style>\n'
+              '</resources>\n'
+          )
+
+          patched = styles_path.read_text()
+          assert '@color/splash_background' in patched, 'launch theme not repointed'
+          assert patched.count('navigationBarColor') == 2, 'navigation bar colour missing'
+          assert (res / 'values-v31' / 'styles.xml').read_text().count('windowSplashScreenBackground') == 1
+          PY
 
       - name: Generate app icon
-        run: npx capacitor-assets generate --android --iconBackgroundColor '#ffffff' --splashBackgroundColor '#ffffff'
+        run: npx capacitor-assets generate --android --iconBackgroundColor '#ffffff' --splashBackgroundColor '#dbe4eb'
 
       # Runs after the generator so the splash bitmaps it just wrote are actually removed.
       - name: Remove splash art
@@ -123,6 +150,7 @@ jobs:
             exit 1
           fi
           grep -q '@color/splash_background' android/app/src/main/res/values/styles.xml || { echo "::error::launch theme not repointed"; exit 1; }
+          grep -q 'navigationBarColor' android/app/src/main/res/values/styles.xml || { echo "::error::app theme missing nav bar colour"; exit 1; }
 
       - name: Add Android permissions
         run: |
