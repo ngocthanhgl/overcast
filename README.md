@@ -61,7 +61,7 @@ Environment (optional, server side only):
 
 ## Android
 
-The APK is built by `.github/workflows/build-apk.yml`: it builds the web app, scaffolds Capacitor, applies the launcher resources from `brand/android/res`, removes the splash art, disables the WebView scrollbars natively, signs with the release keystore and publishes a GitHub Release.
+The APK is built by `.github/workflows/build-apk.yml`: it builds the web app, scaffolds Capacitor, applies the launcher resources from `brand/launcher/res`, removes the splash art, disables the WebView scrollbars natively, signs with the release keystore and publishes a GitHub Release.
 
 `applicationId`: `app.solnim.weather`
 

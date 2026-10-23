@@ -84,10 +84,10 @@ jobs:
           npx cap sync android
 
       # Brand launcher resources (adaptive icon, monochrome layer, per-density PNGs, app_name)
-      # come straight from brand/android/res, so no icon generator is involved.
+      # come straight from brand/launcher/res, so no icon generator is involved.
       - name: Apply Solnim launcher resources
         run: |
-          cp -R brand/android/res/. android/app/src/main/res/
+          cp -R brand/launcher/res/. android/app/src/main/res/
           test -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
           test -f android/app/src/main/res/drawable-v24/ic_launcher_monochrome.xml
           grep -q '<string name="app_name">Solnim</string>' android/app/src/main/res/values/strings_app_name.xml
