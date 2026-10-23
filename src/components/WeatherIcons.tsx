@@ -44,7 +44,7 @@ import {
   ShieldCheck,
   Mountain,
   Plane,
-  Map,
+  Map as MapIcon,
   Zap,
   ArrowLeft,
   Pencil
@@ -100,7 +100,7 @@ export const RawIcons = {
   ShieldCheck,
   Mountain,
   Plane,
-  Map,
+  Map: MapIcon,
   Zap,
   ArrowLeft,
   Pencil
