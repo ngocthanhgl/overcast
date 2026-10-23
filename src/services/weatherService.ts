@@ -5,6 +5,10 @@ import { getActiveProviderId } from './providers/active';
 import { buildOpenMeteoForecastUrl } from './providers/openmeteo';
 import { fetchMetNoWeather } from './providers/metno';
 import { fetchWttrWeather } from './providers/wttr';
+import { getActiveAqiSourceId } from './aqi/active';
+import { getAqiSource } from './aqi/registry';
+import { fetchAqiPreviewForSource } from './aqi/preview';
+import type { AqiPreview, AqiSourceId } from './aqi/types';
 
 
 // --- Safe Fetch Mechanism with Timeout & Retry ---
@@ -632,6 +636,34 @@ function cityCacheKey(cityName: string | undefined, lat: number, lon: number): s
     .toLowerCase();
 }
 
+/**
+ * Fill null/missing variables from the Open-Meteo best-match baseline. Some single
+ * models (GEM, DMI, Meteo-France, UKMO 10km) do not publish UV index or visibility,
+ * which otherwise renders as a real looking 0 / 10 km.
+ */
+function fillNullsFromBase<T extends Record<string, any>>(primary: T, base: any): T {
+  const out: any = { ...primary };
+  for (const section of ['current', 'hourly', 'daily'] as const) {
+    const p = primary?.[section];
+    const b = base?.[section];
+    if (!p || !b) continue;
+    const merged: any = { ...p };
+    for (const key of new Set([...Object.keys(p), ...Object.keys(b)])) {
+      const pv = p[key];
+      const bv = b[key];
+      if (Array.isArray(pv)) {
+        if (!Array.isArray(bv)) continue;
+        const filled = pv.map((v: any, i: number) => (v === null || v === undefined ? bv[i] ?? v : v));
+        if (filled.some((v: any, i: number) => v !== pv[i])) merged[key] = filled;
+      } else if (pv === null || pv === undefined) {
+        if (bv !== null && bv !== undefined) merged[key] = bv;
+      }
+    }
+    out[section] = merged;
+  }
+  return out;
+}
+
 async function fetchOpenMeteoWeather(
   lat: number,
   lon: number,
@@ -640,8 +672,16 @@ async function fetchOpenMeteoWeather(
   countryCode?: string,
   models?: string
 ): Promise<WeatherData | null> {
-  const res = await fetchAllWeatherData(lat, lon, models);
-  if (!res) return null;
+  const primaryPromise = fetchAllWeatherData(lat, lon, models);
+  const baselinePromise = models
+    ? fetchAllWeatherData(lat, lon).catch(() => null)
+    : Promise.resolve<any>(null);
+
+  const primary = await primaryPromise;
+  if (!primary) return null;
+
+  const baseline = await baselinePromise;
+  const res = baseline ? fillNullsFromBase(primary, baseline) : primary;
 
   const currentParsed = parseCurrentWeather(res);
   const sunParsed = parseSunriseSunset(res, res.timezone || timezone || 'UTC');
@@ -1444,67 +1484,123 @@ export async function mapWAQIResultToAirQuality(waqiData: any, cityName: string,
   };
 }
 
-export async function getAQIDataWithFallback(lat: number, lon: number, cityName: string, countryCode?: string) {
-  const token = import.meta.env.VITE_WAQI_TOKEN || "demo";
-  const isDemo = token === "demo" || !import.meta.env.VITE_WAQI_TOKEN;
-  
-  if (!isDemo) {
-    try {
-      const waqiRaw = await fetchAQI(cityName, lat, lon);
-      if (waqiRaw) {
-        const parsed = await mapWAQIResultToAirQuality(waqiRaw, cityName, countryCode);
-        if (parsed) {
-          // Merge with OpenMeteo to fill in any missing or empty pollutant fields
-          const openMeteoRaw = await fetchOpenMeteoAQI(lat, lon, cityName, countryCode);
-          if (openMeteoRaw) {
-            parsed.pm2_5 = parsed.pm2_5 !== undefined && parsed.pm2_5 !== null ? parsed.pm2_5 : openMeteoRaw.pm2_5;
-            parsed.pm10 = parsed.pm10 !== undefined && parsed.pm10 !== null ? parsed.pm10 : openMeteoRaw.pm10;
-            parsed.co = parsed.co !== undefined && parsed.co !== null ? parsed.co : openMeteoRaw.co;
-            parsed.no2 = parsed.no2 !== undefined && parsed.no2 !== null ? parsed.no2 : openMeteoRaw.no2;
-            parsed.o3 = parsed.o3 !== undefined && parsed.o3 !== null ? parsed.o3 : openMeteoRaw.o3;
-            parsed.so2 = parsed.so2 !== undefined && parsed.so2 !== null ? parsed.so2 : openMeteoRaw.so2;
-            parsed.historicalAqi = openMeteoRaw?.historicalAqi;
-          }
-          return parsed;
-        }
-      }
-    } catch (err) {
-      console.warn(`WAQI fetch failed for ${cityName}, falling back:`, err);
-    }
-  }
-  
-  console.log(`Using OpenMeteo AQI for ${cityName}`);
-  const openMeteoRaw = await fetchOpenMeteoAQI(lat, lon, cityName, countryCode);
-  if (openMeteoRaw) {
-    return {
-      usAqi: openMeteoRaw.aqi,
-      description: openMeteoRaw.categoryLabel,
-      color: openMeteoRaw.categoryColor,
-      recommendation: openMeteoRaw.categoryRecommendation,
-      standard: openMeteoRaw.standard,
-      standardLabel: openMeteoRaw.standardLabel,
-      pm2_5: openMeteoRaw.pm2_5,
-      pm10: openMeteoRaw.pm10,
-      co: openMeteoRaw.co,
-      no2: openMeteoRaw.no2,
-      o3: openMeteoRaw.o3,
-      so2: openMeteoRaw.so2,
-      lastUpdated: openMeteoRaw.time,
-      freshnessLabel: openMeteoRaw.freshnessLabel,
-      isUnavailable: openMeteoRaw.isUnavailable,
-      isStale: openMeteoRaw.isStale,
-      historicalAqi: openMeteoRaw.historicalAqi,
-    };
-  }
-  return null;
+/** Maps a comparison-list reading onto the app's AirQuality shape. */
+function mapAqiPreviewToAirQuality(preview: AqiPreview): NonNullable<WeatherData['airQuality']> {
+  const aqi = preview.aqi ?? 0;
+  const category = getAQICategory(aqi, 'US');
+  return {
+    usAqi: aqi,
+    description: preview.category ?? category.label,
+    color: preview.color ?? category.color,
+    recommendation: category.recommendation,
+    standard: 'US',
+    standardLabel: 'AQI · US Standard',
+    pm2_5: preview.pm2_5 ?? undefined,
+    pm10: preview.pm10 ?? undefined,
+    lastUpdated: preview.updatedAt ?? new Date().toISOString(),
+    freshnessLabel: 'Live',
+    isUnavailable: false,
+    isStale: false,
+    historicalAqi: undefined,
+  };
 }
 
-export async function fetchOpenMeteoAQI(lat: number, lon: number, cityName?: string, countryCode?: string) {
+/** Open-Meteo CAMS reading, optionally pinned to a single domain. */
+async function openMeteoAqiResult(
+  lat: number,
+  lon: number,
+  cityName: string,
+  countryCode: string | undefined,
+  domains: string | undefined
+) {
+  console.log(`Using OpenMeteo AQI for ${cityName}${domains ? ` (${domains})` : ''}`);
+  const openMeteoRaw = await fetchOpenMeteoAQI(lat, lon, cityName, countryCode, domains);
+  if (!openMeteoRaw) return null;
+  return {
+    usAqi: openMeteoRaw.aqi,
+    description: openMeteoRaw.categoryLabel,
+    color: openMeteoRaw.categoryColor,
+    recommendation: openMeteoRaw.categoryRecommendation,
+    standard: openMeteoRaw.standard,
+    standardLabel: openMeteoRaw.standardLabel,
+    pm2_5: openMeteoRaw.pm2_5,
+    pm10: openMeteoRaw.pm10,
+    co: openMeteoRaw.co,
+    no2: openMeteoRaw.no2,
+    o3: openMeteoRaw.o3,
+    so2: openMeteoRaw.so2,
+    lastUpdated: openMeteoRaw.time,
+    freshnessLabel: openMeteoRaw.freshnessLabel,
+    isUnavailable: openMeteoRaw.isUnavailable,
+    isStale: openMeteoRaw.isStale,
+    historicalAqi: openMeteoRaw.historicalAqi,
+  };
+}
+
+export async function getAQIDataWithFallback(
+  lat: number,
+  lon: number,
+  cityName: string,
+  countryCode?: string,
+  sourceId: AqiSourceId = getActiveAqiSourceId()
+) {
+  const source = getAqiSource(sourceId);
+  const token = import.meta.env.VITE_WAQI_TOKEN || "demo";
+  const isDemo = token === "demo" || !import.meta.env.VITE_WAQI_TOKEN;
+
+  // City-list / ground-station sources first; fall through to CAMS when they have none.
+  if (source.family !== 'open-meteo') {
+    if (source.family === 'waqi' && !isDemo) {
+      try {
+        const waqiRaw = await fetchAQI(cityName, lat, lon);
+        if (waqiRaw) {
+          const parsed = await mapWAQIResultToAirQuality(waqiRaw, cityName, countryCode);
+          if (parsed) {
+            // Merge with OpenMeteo to fill in any missing or empty pollutant fields
+            const openMeteoRaw = await fetchOpenMeteoAQI(lat, lon, cityName, countryCode);
+            if (openMeteoRaw) {
+              parsed.pm2_5 = parsed.pm2_5 !== undefined && parsed.pm2_5 !== null ? parsed.pm2_5 : openMeteoRaw.pm2_5;
+              parsed.pm10 = parsed.pm10 !== undefined && parsed.pm10 !== null ? parsed.pm10 : openMeteoRaw.pm10;
+              parsed.co = parsed.co !== undefined && parsed.co !== null ? parsed.co : openMeteoRaw.co;
+              parsed.no2 = parsed.no2 !== undefined && parsed.no2 !== null ? parsed.no2 : openMeteoRaw.no2;
+              parsed.o3 = parsed.o3 !== undefined && parsed.o3 !== null ? parsed.o3 : openMeteoRaw.o3;
+              parsed.so2 = parsed.so2 !== undefined && parsed.so2 !== null ? parsed.so2 : openMeteoRaw.so2;
+              parsed.historicalAqi = openMeteoRaw?.historicalAqi;
+            }
+            return parsed;
+          }
+        }
+      } catch (err) {
+        console.warn(`WAQI fetch failed for ${cityName}, falling back:`, err);
+      }
+    }
+
+    try {
+      const preview = await fetchAqiPreviewForSource(sourceId, lat, lon);
+      if (preview && !preview.isUnavailable && preview.aqi != null) {
+        return mapAqiPreviewToAirQuality(preview);
+      }
+    } catch (err) {
+      console.warn(`AQI source ${sourceId} failed for ${cityName}, falling back:`, err);
+    }
+  }
+
+  return openMeteoAqiResult(
+    lat,
+    lon,
+    cityName,
+    countryCode,
+    source.family === 'open-meteo' ? source.domains : undefined
+  );
+}
+
+export async function fetchOpenMeteoAQI(lat: number, lon: number, cityName?: string, countryCode?: string, domains?: string) {
   try {
+    const domainsParam = domains ? `&domains=${domains}` : '';
     const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}` +
       `&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone,sulphur_dioxide,us_aqi` +
       `&hourly=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone,sulphur_dioxide,us_aqi` +
-      `&timezone=auto`;
+      `&timezone=auto${domainsParam}`;
       
     const res = await safeFetch(url);
     if (!res) {

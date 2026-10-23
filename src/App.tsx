@@ -5,7 +5,11 @@ import { fetchWeather, fetchWeatherBulk, getMoonPhaseInfo, getCurrentHourIndex, 
 import { getCachedWeatherData, saveWeatherData, STORAGE_KEYS, getCityKey, CACHE_EXPIRY } from './lib/storage';
 import { setActiveProviderId } from './services/providers/active';
 import { DEFAULT_PROVIDER_ID, isProviderId } from './services/providers/registry';
+import { setActiveAqiSourceId } from './services/aqi/active';
+import { DEFAULT_AQI_SOURCE_ID, isAqiSourceId } from './services/aqi/registry';
+import { clearAqiPreviewCache } from './services/aqi/preview';
 import type { ProviderId } from './services/providers/types';
+import type { AqiSourceId } from './services/aqi/types';
 import { initGestures } from './lib/gestures';
 import WeatherSkeleton from './components/WeatherSkeleton';
 import SearchBar from './components/SearchBar';
@@ -66,6 +70,7 @@ const INITIAL_SETTINGS: Settings = {
   layoutWeatherDetail: 'detailed',
   layoutHourlyForecast: 'detailed',
   layoutDailyForecast: 'compact',
+  aqiProvider: DEFAULT_AQI_SOURCE_ID,
   enabledTiles: {
     aqi: true,
     uv: true,
@@ -332,6 +337,7 @@ export default function App() {
         if (parsed.layoutWeatherDetail === undefined) parsed.layoutWeatherDetail = 'detailed';
         if (parsed.layoutHourlyForecast === undefined) parsed.layoutHourlyForecast = 'detailed';
         if (parsed.layoutDailyForecast === undefined) parsed.layoutDailyForecast = 'compact';
+        if (!isAqiSourceId(parsed.aqiProvider)) parsed.aqiProvider = DEFAULT_AQI_SOURCE_ID;
         if (!parsed.enabledTiles) {
           parsed.enabledTiles = {
             aqi: true,
@@ -426,6 +432,11 @@ export default function App() {
       ? cachedSettings!.weatherProvider
       : DEFAULT_PROVIDER_ID;
     setActiveProviderId(initialProvider);
+
+    const initialAqiSource: AqiSourceId = isAqiSourceId(cachedSettings?.aqiProvider)
+      ? cachedSettings!.aqiProvider!
+      : DEFAULT_AQI_SOURCE_ID;
+    setActiveAqiSourceId(initialAqiSource);
     
     // Attempt absolute zero-lag hydration of weather data from cache
     if (initialLocations.length > 0) {
@@ -2136,6 +2147,18 @@ export default function App() {
       loadWeatherBatch(stateRef.current.locations, 0, true);
     }
   }, [state.settings.weatherProvider]);
+
+  const activeAqiSourceRef = useRef<AqiSourceId>(state.settings.aqiProvider ?? DEFAULT_AQI_SOURCE_ID);
+
+  useEffect(() => {
+    const nextSource: AqiSourceId = state.settings.aqiProvider ?? DEFAULT_AQI_SOURCE_ID;
+    if (nextSource === activeAqiSourceRef.current) return;
+    activeAqiSourceRef.current = nextSource;
+    setActiveAqiSourceId(nextSource);
+    // Readings belong to the previous source; drop the comparison cache and refetch.
+    clearAqiPreviewCache();
+    refreshAQIForIndex(stateRef.current.activeLocationIndex);
+  }, [state.settings.aqiProvider]);
 
   useEffect(() => {
     localStorage.setItem('app_settings', JSON.stringify(state.settings));

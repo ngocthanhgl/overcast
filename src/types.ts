@@ -1,4 +1,5 @@
 import type { ProviderId } from './services/providers/types';
+import type { AqiSourceId } from './services/aqi/types';
 
 export interface Location {
   id: number;
@@ -110,6 +111,7 @@ export interface Settings {
   backgroundGlow?: 'on' | 'off' | 'static';
   language?: string; // e.g. 'en', 'es', 'de', etc.
   weatherProvider?: ProviderId;
+  aqiProvider?: AqiSourceId;
   layoutWeatherDetail?: 'compact' | 'detailed';
   layoutHourlyForecast?: 'compact' | 'detailed';
   layoutDailyForecast?: 'compact' | 'detailed';

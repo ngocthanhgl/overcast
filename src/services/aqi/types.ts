@@ -1,0 +1,33 @@
+export type AqiSourceId = 'cams_global' | 'cams_europe' | 'atmos' | 'waqi';
+
+export type AqiSourceFamily = 'open-meteo' | 'atmos' | 'waqi';
+
+export type AqiCoverage = 'global' | 'europe' | 'cities';
+
+export interface AqiSource {
+  id: AqiSourceId;
+  /** Brand name, never translated. */
+  name: string;
+  /** Translation key for the one-line description used in the source list. */
+  descriptionKey: string;
+  family: AqiSourceFamily;
+  coverage: AqiCoverage;
+  /** Open-Meteo `domains` parameter, when applicable. */
+  domains?: string;
+}
+
+/** One source's current air quality reading, normalized for the comparison list. */
+export interface AqiPreview {
+  /** Index on the source's own scale. */
+  aqi: number | null;
+  category: string | null;
+  color: string | null;
+  pm2_5: number | null;
+  pm10: number | null;
+  /** Station/city the reading came from, for city-based sources. */
+  place?: string | null;
+  updatedAt?: string | null;
+  isUnavailable: boolean;
+  /** Human readable reason when `isUnavailable` is true. */
+  reason?: string | null;
+}
