@@ -88,9 +88,13 @@ jobs:
       - name: Apply Solnim launcher resources
         run: |
           cp -R brand/launcher/res/. android/app/src/main/res/
+          # Capacitor's own values/strings.xml already declares app_name, so the brand file is
+          # only a source of truth in the repo; the live value is patched in place.
+          rm -f android/app/src/main/res/values/strings_app_name.xml
+          sed -i 's#<string name="app_name">.*</string>#<string name="app_name">Solnim</string>#' android/app/src/main/res/values/strings.xml
           test -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
           test -f android/app/src/main/res/drawable-v24/ic_launcher_monochrome.xml
-          grep -q '<string name="app_name">Solnim</string>' android/app/src/main/res/values/strings_app_name.xml
+          grep -q '<string name="app_name">Solnim</string>' android/app/src/main/res/values/strings.xml
           rm -f android/app/src/main/res/drawable*/splash.png
 
       # Android WebView draws its own overlay scrollbars for the root scroller; CSS cannot hide
