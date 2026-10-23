@@ -43,7 +43,19 @@ jobs:
             exit 1
           fi
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
-          "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          # The Google SDK repo index occasionally 500s and makes sdkmanager fail; retry, and
+          # accept the packages already baked into the runner image.
+          if [ ! -d "$ANDROID_HOME/platforms/android-34" ] || [ ! -d "$ANDROID_HOME/build-tools/34.0.0" ]; then
+            for attempt in 1 2 3; do
+              if "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0" > /dev/null 2>&1; then
+                break
+              fi
+              echo "sdkmanager attempt $attempt failed, retrying in 20s"
+              sleep 20
+            done
+          fi
+          test -d "$ANDROID_HOME/platforms/android-34" || { echo "::error::platforms;android-34 unavailable"; exit 1; }
+          test -d "$ANDROID_HOME/build-tools/34.0.0" || { echo "::error::build-tools;34.0.0 unavailable"; exit 1; }
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
