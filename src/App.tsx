@@ -2239,20 +2239,19 @@ export default function App() {
   const [bootDone, setBootDone] = useState(false);
   useEffect(() => {
     if (hasFiredLoadedEventRef.current) return;
-    if (state.loading && state.locations.length > 0) return;
     hasFiredLoadedEventRef.current = true;
 
     const root = document.getElementById('root');
 
-    // A short timeout rather than requestAnimationFrame: rAF does not run in a hidden tab, and
-    // the reveal must never be able to stall. index.html also has a 4s safety net.
+    // Reveal as soon as React has mounted. Do NOT wait for the weather request: on a cold start
+    // with a saved city and no cache that gate kept the whole UI hidden for seconds.
     window.setTimeout(() => {
       if (root) root.classList.add('app-ready');
       setBootDone(true);
       console.log('[Median Bridge] App is ready. Dispatching median_app_loaded event.');
       window.dispatchEvent(new CustomEvent('median_app_loaded'));
-    }, 60);
-  }, [state.loading, state.locations.length]);
+    }, 80);
+  }, []);
 
   // Service Worker pre-fetching strategy for adjacent cities in the swipe sequence
   useEffect(() => {
@@ -2346,7 +2345,7 @@ export default function App() {
     if (!isWelcomed && state.settings.pushEnabled && SafeNotif.getPermission() === "granted") {
       localStorage.setItem('nimbus_black_welcomed', 'true');
       sendNotification(
-        "🖤 Welcome to Overcast",
+        "🖤 Welcome to Solnim",
         "Your ultra-minimalist, black weather experience is now active. Enjoy smooth real-time tracking and precise forecasts."
       );
     }
@@ -2542,7 +2541,7 @@ export default function App() {
       const timeStr = format(now, 'HH:mm');
       if (timeStr === state.settings.notificationTime) {
         const summary = `Today: ${formatTemp(activeWeather.daily.temperatureMax[0], state.settings.unitTemp)}°${state.settings.unitTemp}, ${activeWeather.airQuality?.description} Air.`;
-        sendNotification("Overcast", summary);
+        sendNotification("Solnim", summary);
       }
     };
 
@@ -2875,13 +2874,13 @@ export default function App() {
 
   // Android hardware back button: route to in-app back handler when any screen/modal is open
   useEffect(() => {
-    const w = window as unknown as { __overcastBackHandler?: () => void };
+    const w = window as unknown as { __solnimBackHandler?: () => void };
     if (isAnyModalOpen || showDailyForecastDetail) {
-      w.__overcastBackHandler = handleBack;
+      w.__solnimBackHandler = handleBack;
     } else {
-      delete w.__overcastBackHandler;
+      delete w.__solnimBackHandler;
     }
-    return () => { delete w.__overcastBackHandler; };
+    return () => { delete w.__solnimBackHandler; };
   }, [isAnyModalOpen, showDailyForecastDetail, handleBack]);
 
   const weatherContent = React.useMemo(() => {
@@ -3626,7 +3625,7 @@ export default function App() {
 
                     <div className="flex flex-col items-center z-10 w-full mb-8">
                       <h1 className="text-[36px] font-bold tracking-tight text-[#0c1224] text-center leading-[1.12] max-w-[325px] font-sans">
-                        <Translate text="Welcome to Overcast" lang={state.settings.language} />
+                        <Translate text="Welcome to Solnim" lang={state.settings.language} />
                       </h1>
                     </div>
 

@@ -81,7 +81,7 @@ async function getWeather(lat, lon) {
 function getCondition(code) {
   if (code === 0)  return "Clear sky";
   if (code <= 2)   return "Partly cloudy";
-  if (code === 3)  return "Overcast";
+  if (code === 3)  return "Solnim";
   if (code <= 48)  return "Foggy";
   if (code <= 57)  return "Drizzle";
   if (code <= 67)  return "Rain";

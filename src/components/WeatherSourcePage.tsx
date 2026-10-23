@@ -256,7 +256,7 @@ export default function WeatherSourcePage({ settings, location, onSelect, onClos
       <p className="text-[12px] text-app-text-dim opacity-60 leading-relaxed px-1 mb-8">{footerNote}</p>
 
       <div className="flex flex-col items-center justify-center pt-4 pb-4 text-center w-full">
-        <p className="text-[12px] font-semibold text-app-text-dim opacity-40 tracking-tight">&copy; 2026 Overcast</p>
+        <p className="text-[12px] font-semibold text-app-text-dim opacity-40 tracking-tight">&copy; 2026 Solnim</p>
       </div>
     </div>
   );

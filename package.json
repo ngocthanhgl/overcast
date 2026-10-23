@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "solnim",
   "private": true,
   "version": "1.0.2",
   "type": "module",
@@ -41,5 +41,6 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
-  }
+  },
+  "description": "Solnim ? clean weather app: real-time conditions, hourly and 7-day forecasts, air quality, UV index and live radar."
 }

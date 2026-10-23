@@ -408,7 +408,7 @@ app.post('/api/rate', async (req, res) => {
       {
         title: "📲 New Weather Rating Submission",
         color: embedColor,
-        description: `**OVERCAST User Feedback**\nRating: **${ratingNum}/5** (${starsStr})`,
+        description: `**SOLNIM User Feedback**\nRating: **${ratingNum}/5** (${starsStr})`,
         fields: [
           {
             name: "🌡️ Weather Information",
@@ -432,7 +432,7 @@ app.post('/api/rate', async (req, res) => {
           }
         ],
         footer: {
-          text: "OVERCAST Weather Engine Feedback Stream"
+          text: "SOLNIM Weather Engine Feedback Stream"
         },
         timestamp: new Date().toISOString()
       }
@@ -505,7 +505,7 @@ app.post('/api/translate', async (req, res) => {
 Text:
 ${singleText}`,
         config: {
-          systemInstruction: 'You are a professional, high-fidelity translator for a weather application named OVERCAST. Translate the text accurately. Do not add any explanations or conversational preambles.',
+          systemInstruction: 'You are a professional, high-fidelity translator for a weather application named SOLNIM. Translate the text accurately. Do not add any explanations or conversational preambles.',
           responseMimeType: "text/plain"
         }
       });
@@ -553,7 +553,7 @@ ${singleText}`,
         contents: `Translate the following list of strings into the target language with code "${langCode}". Return the translations as a JSON array in the exact same index order.
 List: ${JSON.stringify(missingTexts)}`,
         config: {
-          systemInstruction: 'You are a professional, high-fidelity translator for a weather application named OVERCAST. Translate JSON elements accurately. Return only a flat JSON array of strings.',
+          systemInstruction: 'You are a professional, high-fidelity translator for a weather application named SOLNIM. Translate JSON elements accurately. Return only a flat JSON array of strings.',
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
@@ -622,7 +622,7 @@ List: ${JSON.stringify(missingTexts)}`,
         contents: `Translate the following list of strings into the target language with code "${langCode}". Return the translations as a JSON array in the exact same index order.
 List: ${JSON.stringify(missingValues)}`,
         config: {
-          systemInstruction: 'You are a professional, high-fidelity translator for a weather application named OVERCAST. Translate JSON elements accurately. Return only a flat JSON array of strings.',
+          systemInstruction: 'You are a professional, high-fidelity translator for a weather application named SOLNIM. Translate JSON elements accurately. Return only a flat JSON array of strings.',
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
@@ -899,7 +899,7 @@ app.get('/api/metno-proxy', async (req, res) => {
     const upstream = await fetch(targetUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': 'OvercastWeatherApp/1.0 (https://github.com/ngocthanhgl/overcast-app)',
+        'User-Agent': 'SolnimWeatherApp/1.0 (https://github.com/ngocthanhgl/overcast-app)',
         'Accept': 'application/json',
       },
     });

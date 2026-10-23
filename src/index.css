@@ -50,10 +50,21 @@
    the UI simply softens in instead of appearing as a hard cut. */
 #root {
   opacity: 0;
+  overflow-x: clip;
 }
 #root.app-ready {
   opacity: 1;
   transition: opacity 200ms ease-out;
+}
+
+/* No horizontal scroll, ever: one stray wide element used to expose a horizontal scrollbar.
+   Android WebView's root scrollbars are switched off natively (see MainActivity.java). */
+html,
+body {
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 /* ============================================

@@ -29,7 +29,7 @@ import { Package, Cloud, FileText, Shield, ArrowUpRight, Info, Bell, Sliders, Ac
 
 export const TERMS_CONTENT = `Last Updated: June 2026
 
-By using Overcast, you agree to the following terms.
+By using Solnim, you agree to the following terms.
 
 ## Informational Use Only
 
@@ -39,7 +39,7 @@ Forecasting is inherently uncertain and conditions may change rapidly.
 
 ## No Guarantee of Accuracy
 
-Overcast and its data providers do not guarantee the accuracy, completeness, availability, or timeliness of any information displayed within the application.
+Solnim and its data providers do not guarantee the accuracy, completeness, availability, or timeliness of any information displayed within the application.
 
 ## Not for Critical Safety Decisions
 
@@ -63,7 +63,7 @@ Temporary outages may occur due to maintenance, infrastructure issues, or provid
 
 ## Open Source Software
 
-Overcast is provided as open-source software and may be modified, forked, or redistributed according to the project's license.
+Solnim is provided as open-source software and may be modified, forked, or redistributed according to the project's license.
 
 ## Disclaimer of Warranties
 
@@ -71,15 +71,15 @@ The application is provided "as is" and "as available" without warranties of any
 
 ## Limitation of Liability
 
-To the maximum extent permitted by applicable law, Overcast and its contributors shall not be liable for any direct, indirect, incidental, consequential, or special damages arising from the use of, or inability to use, the application.
+To the maximum extent permitted by applicable law, Solnim and its contributors shall not be liable for any direct, indirect, incidental, consequential, or special damages arising from the use of, or inability to use, the application.
 
 ## Acceptance of Terms
 
-By using Overcast, you acknowledge that you have read and agree to these Terms of Use.`;
+By using Solnim, you acknowledge that you have read and agree to these Terms of Use.`;
 
 export const PRIVACY_CONTENT = `Last Updated: June 2026
 
-Overcast is designed with a privacy-first approach. The application does not require user accounts, subscriptions, or personal information to function.
+Solnim is designed with a privacy-first approach. The application does not require user accounts, subscriptions, or personal information to function.
 
 ## What Data Is Used
 
@@ -94,7 +94,7 @@ This information is used solely to provide weather-related functionality.
 
 Your preferences, saved locations, units, themes, and alert settings are stored locally on your device using browser storage.
 
-Overcast does not operate user accounts and does not maintain a database of user profiles.
+Solnim does not operate user accounts and does not maintain a database of user profiles.
 
 ## Third-Party Weather Services
 
@@ -102,7 +102,7 @@ Weather forecasts, alerts, and environmental data are obtained from third-party 
 
 When weather information is requested, certain data such as your approximate IP address or requested coordinates may be processed by these providers according to their own privacy policies.
 
-Overcast does not control how third-party providers process data.
+Solnim does not control how third-party providers process data.
 
 ## Analytics and Tracking
 
@@ -122,7 +122,7 @@ Removing saved locations, clearing browser storage, uninstalling the PWA, or cle
 
 ## Open Source
 
-Overcast is an open-source project. The source code is publicly available for inspection, review, and contribution under the project's license.
+Solnim is an open-source project. The source code is publicly available for inspection, review, and contribution under the project's license.
 
 ## Changes
 
@@ -814,8 +814,8 @@ const SettingsScreen = ({
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [githubToast, setGithubToast] = useState(false);
 
-  const GITHUB_REPO_URL = "https://github.com/aryannvaidya/overcast";
-  const BUG_REPORT_URL = "https://github.com/aryannvaidya/overcast/issues";
+  const GITHUB_REPO_URL = "https://github.com/ngocthanhgl/solnim";
+  const BUG_REPORT_URL = "https://github.com/ngocthanhgl/solnim/issues";
 
   useEffect(() => {
     if (githubToast) {
@@ -1465,7 +1465,7 @@ const SettingsScreen = ({
                 
                 {/* Footer */}
                 <div className="flex flex-col items-center justify-center pt-8 pb-4 text-center w-full">
-                  <p className="text-[12px] font-semibold text-app-text-dim opacity-40 tracking-tight">&copy; 2026 Overcast</p>
+                  <p className="text-[12px] font-semibold text-app-text-dim opacity-40 tracking-tight">&copy; 2026 Solnim</p>
                 </div>
               </div>
             </motion.div>
@@ -2424,7 +2424,7 @@ const SettingsScreen = ({
 
                 {/* Title & spacing */}
                 <h3 className="text-[19px] font-bold text-app-text mt-7 mb-2 tracking-tight">
-                  <Translate text="Rate Overcast" lang={localSettings.language} />
+                  <Translate text="Rate Solnim" lang={localSettings.language} />
                 </h3>
 
                 {/* Emoji bar */}
@@ -2461,7 +2461,7 @@ const SettingsScreen = ({
 
                 {/* Question */}
                 <p className="text-[14px] text-app-text-dim mb-6 px-1 tracking-tight font-medium">
-                  <Translate text="How do you feel about Overcast?" lang={localSettings.language} />
+                  <Translate text="How do you feel about Solnim?" lang={localSettings.language} />
                 </p>
 
                 {/* Separation line & Actions buttons */}
@@ -2524,7 +2524,7 @@ const SettingsScreen = ({
                 <Translate text="Thank you for the rating!" lang={localSettings.language} />
               </h3>
               <p className="text-[13px] text-app-text-dim leading-relaxed mb-6 font-medium px-1">
-                <Translate text="Please consider starring our repository on GitHub! Your support helps others discover Overcast." lang={localSettings.language} />
+                <Translate text="Please consider starring our repository on GitHub! Your support helps others discover Solnim." lang={localSettings.language} />
               </p>
               
               <div className="flex flex-col gap-2">

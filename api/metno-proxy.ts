@@ -25,7 +25,7 @@ export default async function handler(request: any, response: any) {
     const upstream = await fetch(targetUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': 'OvercastWeatherApp/1.0 (https://github.com/ngocthanhgl/overcast-app)',
+        'User-Agent': 'SolnimWeatherApp/1.0 (https://github.com/ngocthanhgl/solnim)',
         'Accept': 'application/json',
       },
     });

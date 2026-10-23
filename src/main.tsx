@@ -12,7 +12,7 @@ async function initNativeSystemBars() {
     if (!Capacitor.isNativePlatform()) return;
     await StatusBar.setOverlaysWebView({overlay: true});
     void CapacitorApp.addListener('backButton', ({canGoBack}) => {
-      const handler = (window as unknown as {__overcastBackHandler?: () => void}).__overcastBackHandler;
+      const handler = (window as unknown as {__solnimBackHandler?: () => void}).__solnimBackHandler;
       if (typeof handler === 'function') {
         handler();
         return;
