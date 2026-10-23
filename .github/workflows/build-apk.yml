@@ -83,12 +83,11 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      # No splash art: the launch window stays a flat colour until the WebView paints.
-      # Capacitor's theme points windowBackground at the generated splash bitmap, so the
-      # splash drawables are dropped and the theme repointed at a plain colour.
-      - name: Remove splash art
+      # No splash art: the launch window is a flat colour until the WebView paints. Capacitor's
+      # theme points windowBackground at the generated splash bitmap, so the theme is repointed
+      # here; the bitmaps themselves are deleted after the asset generator runs.
+      - name: Point launch theme at a flat colour
         run: |
-          rm -f android/app/src/main/res/drawable*/splash.png
           mkdir -p android/app/src/main/res/values android/app/src/main/res/values-v31
           cat > android/app/src/main/res/values/splash_background.xml <<'XML'
           <?xml version="1.0" encoding="utf-8"?>
@@ -112,8 +111,18 @@ jobs:
           </resources>
           XML
 
-      - name: Generate app icon and splash screen
+      - name: Generate app icon
         run: npx capacitor-assets generate --android --iconBackgroundColor '#ffffff' --splashBackgroundColor '#ffffff'
+
+      # Runs after the generator so the splash bitmaps it just wrote are actually removed.
+      - name: Remove splash art
+        run: |
+          rm -f android/app/src/main/res/drawable*/splash.png
+          if find android/app/src/main/res -name 'splash.png' | grep -q .; then
+            echo "::error::splash drawables still present"
+            exit 1
+          fi
+          grep -q '@color/splash_background' android/app/src/main/res/values/styles.xml || { echo "::error::launch theme not repointed"; exit 1; }
 
       - name: Add Android permissions
         run: |
